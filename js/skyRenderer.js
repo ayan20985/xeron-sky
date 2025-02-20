@@ -63,7 +63,7 @@ class SkyRenderer {
         menu.style.position = 'absolute';
         menu.style.top = '10px';
         menu.style.right = '10px';
-        menu.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        menu.style.backgroundColor = 'transparent';
         menu.style.padding = '10px';
         menu.style.borderRadius = '5px';
         menu.style.zIndex = '1000';
@@ -316,13 +316,60 @@ class SkyRenderer {
                     infoDiv.style.left = (mouseX + 20) + 'px';
                     infoDiv.style.top = (mouseY - 20) + 'px';
                 }
-                infoDiv.style.padding = '10px';
-                infoDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                infoDiv.style.color = 'white';
-                infoDiv.style.border = '1px solid white';
-                infoDiv.style.borderRadius = '5px';
+                infoDiv.style.padding = '5px';
+                infoDiv.style.backgroundColor = '#222';
+                infoDiv.style.color = '#fff';
+                infoDiv.style.border = '1px solid #444';
+                infoDiv.style.borderRadius = '3px';
                 infoDiv.style.zIndex = '1001';
-                infoDiv.innerHTML = '<pre style="margin:0; font-size:12px;">' + JSON.stringify(closestStar, null, 2) + '</pre>';
+                const tabContainer = document.createElement('div');
+                tabContainer.style.display = 'flex';
+                tabContainer.style.borderBottom = '1px solid #444';
+                tabContainer.style.marginBottom = '5px';
+                tabContainer.style.cursor = 'pointer';
+                const summaryTab = document.createElement('div');
+                summaryTab.textContent = 'Summary';
+                summaryTab.style.flex = '1';
+                summaryTab.style.padding = '5px';
+                summaryTab.style.backgroundColor = '#222';
+                summaryTab.style.color = '#fff';
+                summaryTab.style.textAlign = 'center';
+                const rawTab = document.createElement('div');
+                rawTab.textContent = 'Raw';
+                rawTab.style.flex = '1';
+                rawTab.style.padding = '5px';
+                rawTab.style.backgroundColor = '#444';
+                rawTab.style.color = '#fff';
+                rawTab.style.textAlign = 'center';
+                tabContainer.appendChild(summaryTab);
+                tabContainer.appendChild(rawTab);
+                const contentContainer = document.createElement('div');
+                contentContainer.style.padding = '5px';
+                contentContainer.style.color = '#fff';
+                contentContainer.style.fontSize = '12px';
+                function showSummary() {
+                    summaryTab.style.backgroundColor = '#222';
+                    rawTab.style.backgroundColor = '#444';
+                    contentContainer.innerHTML = '';
+                    const starInfo = document.createElement('div');
+                    const name = closestStar.name || 'N/A';
+                    const magnitude = (closestStar.magnitude !== undefined) ? closestStar.magnitude : 'N/A';
+                    const spectral = closestStar.spectralType || (closestStar.colorIndex !== undefined ? closestStar.colorIndex : 'N/A');
+                    starInfo.innerHTML = '<strong>Name:</strong> ' + name + '<br>' +
+                                          '<strong>Magnitude:</strong> ' + magnitude + '<br>' +
+                                          '<strong>Spectral Type / Color Index:</strong> ' + spectral;
+                    contentContainer.appendChild(starInfo);
+                }
+                function showRaw() {
+                    rawTab.style.backgroundColor = '#222';
+                    summaryTab.style.backgroundColor = '#444';
+                    contentContainer.innerHTML = '<pre style="margin:0; font-size:12px;">' + JSON.stringify(closestStar, null, 2) + '</pre>';
+                }
+                showSummary();
+                summaryTab.addEventListener('click', showSummary);
+                rawTab.addEventListener('click', showRaw);
+                infoDiv.appendChild(tabContainer);
+                infoDiv.appendChild(contentContainer);
                 const closeBtn = document.createElement('button');
                 closeBtn.innerHTML = '&times;';
                 closeBtn.style.fontSize = '16px';
