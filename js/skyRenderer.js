@@ -40,6 +40,9 @@ class SkyRenderer {
         this.initShaders(this.gl);
         this.initBuffers(this.gl);
 
+        // Add rotation for Hammer projection
+        this.hammerRotation = 0;
+        
         // Add pan parameters
         this.pan = { x: 0, y: 0 };
         this.scale = 1.0;
@@ -58,6 +61,9 @@ class SkyRenderer {
 
         // Initial resize
         this.resize();
+
+        // Add version info
+        this.version = "v1.0.0";
     }
 
     createProjectionMenu() {
@@ -244,6 +250,7 @@ class SkyRenderer {
         let isDragging = false;
         let lastX = 0;
         let lastY = 0;
+        let hoveredPoint = null;
 
         canvas.addEventListener('mousedown', (e) => {
             isDragging = true;
@@ -251,22 +258,104 @@ class SkyRenderer {
             lastY = e.clientY;
         });
 
+        // Add mousemove handler for hover text
         canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Check for hover over special points
+            let foundPoint = null;
+            if (this.hoverAreas) {
+                for (const area of this.hoverAreas) {
+                    if (mouseX >= area.x && mouseX <= area.x + area.width &&
+                        mouseY >= area.y && mouseY <= area.y + area.height) {
+                        foundPoint = area.point;
+                        break;
+                    }
+                }
+            }
+            
+            if (foundPoint !== hoveredPoint) {
+                hoveredPoint = foundPoint;
+                if (hoveredPoint) {
+                    canvas.style.cursor = 'pointer';
+                    // Show tooltip
+                    const tooltip = document.getElementById('sky-tooltip') || document.createElement('div');
+                    tooltip.id = 'sky-tooltip';
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.backgroundColor = '#222';
+                    tooltip.style.color = '#fff';
+                    tooltip.style.padding = '5px';
+                    tooltip.style.border = '1px solid #444';
+                    tooltip.style.borderRadius = '3px';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.pointerEvents = 'none';
+                    tooltip.style.zIndex = '1000';
+                    tooltip.textContent = hoveredPoint.name;
+                    
+                    if (!document.getElementById('sky-tooltip')) {
+                        canvas.parentNode.appendChild(tooltip);
+                    }
+                    
+                    // Position tooltip
+                    tooltip.style.left = (e.clientX + 10) + 'px';
+                    tooltip.style.top = (e.clientY + 10) + 'px';
+                } else {
+                    canvas.style.cursor = '';
+                    const tooltip = document.getElementById('sky-tooltip');
+                    if (tooltip) {
+                        tooltip.remove();
+                    }
+                }
+            } else if (hoveredPoint) {
+                // Update tooltip position if still hovering
+                const tooltip = document.getElementById('sky-tooltip');
+                if (tooltip) {
+                    tooltip.style.left = (e.clientX + 10) + 'px';
+                    tooltip.style.top = (e.clientY + 10) + 'px';
+                }
+            }
+
             if (!isDragging) return;
             
             const deltaX = e.clientX - lastX;
             const deltaY = e.clientY - lastY;
             
-            if (this.projectionType === 'spherical') {
+            switch (this.projectionType) {
+                case 'spherical':
                 // 3D rotation for spherical projection
                 this.rotation.x += deltaY * 0.005;
                 this.rotation.y += deltaX * 0.005;
+                    break;
+                    
+                case 'stereographic':
+                    // Regular 2D pan for stereographic
+                    const stereoScaleFactor = 2.0 / (this.scale * this.gl.canvas.width);
+                    this.pan.x += deltaX * stereoScaleFactor;
+                    this.pan.y -= deltaY * stereoScaleFactor;
+                    break;
+                    
+                case 'hammer':
+                    if (e.shiftKey) {
+                        // Rotate around polar axis when shift is held
+                        this.hammerRotation += deltaX * 0.005;
             } else {
-                // 2D pan for flat projections
-                // Scale the pan delta by the view scale
-                const scaleFactor = 2.0 / (this.scale * this.gl.canvas.width);
-                this.pan.x += deltaX * scaleFactor;
-                this.pan.y -= deltaY * scaleFactor;  // Invert Y for correct pan direction
+                        // Pan normally
+                        const hammerScaleFactor = 2.0 / (this.scale * this.gl.canvas.width);
+                        this.pan.x += deltaX * hammerScaleFactor;
+                        this.pan.y -= deltaY * hammerScaleFactor;
+                    }
+                    break;
+                    
+                case 'mercator':
+                    // Infinite horizontal scroll for Mercator
+                    const mercatorScaleFactor = 2.0 / (this.scale * this.gl.canvas.width);
+                    this.pan.x += deltaX * mercatorScaleFactor;
+                    // Limit vertical pan to avoid extreme distortion
+                    const newY = this.pan.y - deltaY * mercatorScaleFactor;
+                    this.pan.y = Math.max(Math.min(newY, Math.PI/2), -Math.PI/2);
+                    break;
             }
             
             lastX = e.clientX;
@@ -515,7 +604,7 @@ class SkyRenderer {
                 info.star = transformedStar;  // Update with new transformed position
             }
         });
-
+        
         const positions = new Float32Array(transformedStars.length * 3);
         const magnitudes = new Float32Array(transformedStars.length);
         const colors = new Float32Array(transformedStars.length * 3);
@@ -831,6 +920,40 @@ class SkyRenderer {
         }
     }
 
+    drawVersionInfo() {
+        const ctx = this.ctx2d;
+        const padding = 10;
+        const lineHeight = 16;
+        
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        
+        // Draw engine name and version
+        ctx.fillText(`Xeron Sky Engine v0.11`, padding, this.canvas.height - padding - (lineHeight * 2));
+        
+        // Draw disclaimer and website link
+        ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, this.canvas.height - padding - lineHeight);
+        
+        // Draw website link with underline
+        const websiteText = 'www.ayanali.net';
+        const websiteY = this.canvas.height - padding;
+        ctx.fillStyle = 'rgba(100, 149, 237, 0.9)';  // Cornflower blue color
+        ctx.fillText(websiteText, padding, websiteY);
+        
+        // Add underline
+        const textWidth = ctx.measureText(websiteText).width;
+        ctx.beginPath();
+        ctx.moveTo(padding, websiteY + 2);
+        ctx.lineTo(padding + textWidth, websiteY + 2);
+        ctx.strokeStyle = 'rgba(100, 149, 237, 0.9)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+
     render(currentTime = new Date()) {
         // Store the current render time for use in click detection
         this.currentRenderTime = currentTime;
@@ -984,6 +1107,9 @@ class SkyRenderer {
                 }
             });
         }
+
+        // Draw version info and credits after everything else
+        this.drawVersionInfo();
     }
 
     updateMatrices() {
@@ -1028,8 +1154,14 @@ class SkyRenderer {
             // Apply scale first
             mat4.scale(modelViewMatrix, modelViewMatrix, [this.scale, this.scale, 1]);
             
-            // Then apply pan
+            // Apply pan
+            if (this.projectionType !== 'mercator') {
+                // For non-Mercator projections, apply pan normally
             mat4.translate(modelViewMatrix, modelViewMatrix, [this.pan.x / this.scale, this.pan.y / this.scale, 0]);
+            } else {
+                // For Mercator, only apply vertical pan
+                mat4.translate(modelViewMatrix, modelViewMatrix, [0, this.pan.y / this.scale, 0]);
+            }
 
             this.modelViewMatrix = modelViewMatrix;
             this.projectionMatrix = projectionMatrix;
@@ -1052,21 +1184,47 @@ class SkyRenderer {
             ctx.lineWidth = 1;
             
             let first = true;
-            line.points.forEach(point => {
-                // Transform point based on projection type
-                let transformedPoint = point;
+            let lastPos = null;
+            let lastPoint = null;
+            
+            line.points.forEach((point, index) => {
+                // Transform point based on projection type and coordinate system
+                let transformedPoint;
+                
                 if (type !== 'spherical') {
+                    // Convert to equatorial coordinates first if needed
+                    let eqCoords;
+                    if (line.type === 'galactic' && 'l' in point && 'b' in point) {
+                        eqCoords = this.galacticToCartesian(point.l, point.b);
+                    } else if (line.type === 'azimuthal' && 'az' in point && 'alt' in point) {
+                        eqCoords = this.azimuthalToCartesian(point.az, point.alt);
+                    } else {
+                        eqCoords = this.equatorialToCartesian(point.ra, point.dec);
+                    }
+                    
+                    // Then apply the projection
                     switch(type) {
                         case 'stereographic':
-                            transformedPoint = this.equatorialToStereographic(point.ra, point.dec);
+                            transformedPoint = this.equatorialToStereographic(
+                                Math.atan2(eqCoords.y, eqCoords.x) * 12 / Math.PI,
+                                Math.asin(eqCoords.z) * 180 / Math.PI
+                            );
                             break;
                         case 'mercator':
-                            transformedPoint = this.equatorialToMercator(point.ra, point.dec);
+                            transformedPoint = this.equatorialToMercator(
+                                Math.atan2(eqCoords.y, eqCoords.x) * 12 / Math.PI,
+                                Math.asin(eqCoords.z) * 180 / Math.PI
+                            );
                             break;
                         case 'hammer':
-                            transformedPoint = this.equatorialToHammer(point.ra, point.dec);
+                            transformedPoint = this.equatorialToHammer(
+                                Math.atan2(eqCoords.y, eqCoords.x) * 12 / Math.PI,
+                                Math.asin(eqCoords.z) * 180 / Math.PI
+                            );
                             break;
                     }
+                } else {
+                    transformedPoint = point;
                 }
                 
                 // Project point to screen space
@@ -1076,12 +1234,142 @@ class SkyRenderer {
                         ctx.moveTo(pos.x, pos.y);
                         first = false;
                     } else {
+                        // Check for line segment culling conditions
+                        let shouldDraw = true;
+                        
+                        if (lastPos) {
+                            const dx = pos.x - lastPos.x;
+                            const dy = pos.y - lastPos.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            const canvasWidth = this.canvas.width;
+                            const canvasHeight = this.canvas.height;
+                            
+                            if (type === 'hammer') {
+                                // Calculate normalized coordinates (-1 to 1)
+                                const nx1 = (lastPos.x / canvasWidth) * 2 - 1;
+                                const nx2 = (pos.x / canvasWidth) * 2 - 1;
+                                const ny1 = (lastPos.y / canvasHeight) * 2 - 1;
+                                const ny2 = (pos.y / canvasHeight) * 2 - 1;
+                                
+                                // Calculate distance from center for both points
+                                const r1 = Math.sqrt(nx1 * nx1 + ny1 * ny1);
+                                const r2 = Math.sqrt(nx2 * nx2 + ny2 * ny2);
+                                
+                                // Don't draw if:
+                                // 1. Either point is outside the valid projection area
+                                // 2. Line segment is too long (indicates wrapping)
+                                // 3. Points are on opposite sides of the projection
+                                const edgeThreshold = 1.15; // Increased from 0.95 to allow lines closer to edge
+                                if (r1 > edgeThreshold || r2 > edgeThreshold || 
+                                    distance > canvasWidth * 0.4 || // Increased from 0.3 to allow longer lines
+                                    (nx1 * nx2 < 0 && Math.abs(dx) > canvasWidth * 0.4)) {
+                                    shouldDraw = false;
+                                }
+                            } else if (type === 'mercator') {
+                                // For Mercator, check horizontal wrapping
+                                if (Math.abs(dx) > canvasWidth * 0.8) {
+                                    shouldDraw = false;
+                                }
+                            }
+                        }
+                        
+                        if (shouldDraw) {
                         ctx.lineTo(pos.x, pos.y);
+                        } else {
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.moveTo(pos.x, pos.y);
                     }
+                    }
+                    lastPos = pos;
+                    lastPoint = point;
                 }
             });
             
             ctx.stroke();
+
+            // Draw special points for ecliptic
+            if (line.type === 'ecliptic') {
+                const specialPoints = [
+                    // Cardinal points of the ecliptic
+                    { name: 'Vernal Equinox (First Point of Aries)', lon: 0, color: 'rgba(0, 255, 0, 0.8)' },    
+                    { name: 'Summer Solstice (First Point of Cancer)', lon: 90, color: 'rgba(255, 255, 0, 0.8)' },  
+                    { name: 'Autumnal Equinox (First Point of Libra)', lon: 180, color: 'rgba(0, 255, 0, 0.8)' },   
+                    { name: 'Winter Solstice (First Point of Capricorn)', lon: 270, color: 'rgba(255, 255, 0, 0.8)' },
+                    
+                    // Additional ecliptic points
+                    { name: 'First Point of Taurus', lon: 30, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Gemini', lon: 60, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Leo', lon: 120, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Virgo', lon: 150, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Scorpius', lon: 210, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Sagittarius', lon: 240, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Aquarius', lon: 300, color: 'rgba(200, 200, 200, 0.8)' },
+                    { name: 'First Point of Pisces', lon: 330, color: 'rgba(200, 200, 200, 0.8)' }
+                ];
+
+                specialPoints.forEach(point => {
+                    const lonRad = point.lon * Math.PI / 180;
+                    const sinDec = Math.sin(23.4367 * Math.PI / 180) * Math.sin(lonRad);
+                    const dec = Math.asin(sinDec);
+                    const ra = Math.atan2(
+                        Math.cos(23.4367 * Math.PI / 180) * Math.sin(lonRad),
+                        Math.cos(lonRad)
+                    );
+                    
+                    const raHours = ((ra * 12 / Math.PI) + 24) % 24;
+                    const decDeg = dec * 180 / Math.PI;
+                    
+                    let coords = this.equatorialToCartesian(raHours, decDeg);
+                    
+                    if (type !== 'spherical') {
+                        switch(type) {
+                            case 'stereographic':
+                                coords = this.equatorialToStereographic(raHours, decDeg);
+                                break;
+                            case 'mercator':
+                                coords = this.equatorialToMercator(raHours, decDeg);
+                                break;
+                            case 'hammer':
+                                coords = this.equatorialToHammer(raHours, decDeg);
+                                break;
+                        }
+                    }
+                    
+                    const pos = this.projectPoint(coords);
+                    if (pos) {
+                        // Draw star symbol
+                        ctx.beginPath();
+                        const starSize = 4;
+                        for (let i = 0; i < 5; i++) {
+                            const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+                            const x = pos.x + Math.cos(angle) * starSize;
+                            const y = pos.y + Math.sin(angle) * starSize;
+                            if (i === 0) {
+                                ctx.moveTo(x, y);
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        ctx.closePath();
+                        ctx.fillStyle = point.color;
+                        ctx.fill();
+                        
+                        // Add hover area for the point
+                        const hoverArea = {
+                            x: pos.x - starSize * 2,
+                            y: pos.y - starSize * 2,
+                            width: starSize * 4,
+                            height: starSize * 4,
+                            point: point
+                        };
+                        
+                        // Store hover area for later use
+                        if (!this.hoverAreas) this.hoverAreas = [];
+                        this.hoverAreas.push(hoverArea);
+                    }
+                });
+            }
         });
     }
 
@@ -1165,11 +1453,17 @@ class SkyRenderer {
     equatorialToMercator(ra, dec) {
         // Handle wrapping for Mercator projection
         let normalizedRA = ra * 15; // Convert hours to degrees
-        while (normalizedRA > 360) normalizedRA -= 360;
-        while (normalizedRA < 0) normalizedRA += 360;
+        
+        // For Mercator, apply the pan.x offset before normalization
+        if (this.projectionType === 'mercator') {
+            normalizedRA = normalizedRA - (this.pan.x * 180 / Math.PI);
+        }
+        
+        // Normalize to [0, 360] range
+        normalizedRA = ((normalizedRA % 360) + 360) % 360;
         
         // Convert to radians and shift to [-180, 180] range
-        const raRad = ((normalizedRA + 180) % 360 - 180) * Math.PI / 180;
+        const raRad = (normalizedRA - 180) * Math.PI / 180;
         const decRad = Math.max(Math.min(dec * Math.PI / 180, 1.4835), -1.4835); // Limit to ~85 degrees
 
         return {
@@ -1184,6 +1478,11 @@ class SkyRenderer {
         let normalizedRA = ra * 15; // Convert hours to degrees
         while (normalizedRA > 360) normalizedRA -= 360;
         while (normalizedRA < 0) normalizedRA += 360;
+        
+        // Apply rotation around polar axis for Hammer projection
+        if (this.projectionType === 'hammer' && this.hammerRotation !== 0) {
+            normalizedRA = (normalizedRA + (this.hammerRotation * 180 / Math.PI)) % 360;
+        }
         
         // Convert to radians, centered on 0
         const raRad = ((normalizedRA + 180) % 360 - 180) * Math.PI / 180;
@@ -1207,9 +1506,10 @@ class SkyRenderer {
     }
 
     initGrid() {
-        // Create grid lines
+        // Create grid lines array
         this.gridLines = [];
         
+        // Equatorial grid (blue)
         // Declination lines (parallels)
         for (let dec = -80; dec <= 80; dec += 20) {
             const points = [];
@@ -1223,12 +1523,29 @@ class SkyRenderer {
             }
             this.gridLines.push({
                 points,
-                color: 'rgba(50, 50, 100, 0.3)'
+                color: 'rgba(50, 50, 150, 0.3)',
+                type: 'equatorial'
             });
         }
+
+        // Special green meridian at RA = 0h (vernal equinox)
+        const greenMeridianPoints = [];
+        for (let dec = -90; dec <= 90; dec += 2) {
+            const coords = this.equatorialToCartesian(0, dec);
+            greenMeridianPoints.push({
+                ...coords,
+                ra: 0,
+                dec: dec
+            });
+        }
+        this.gridLines.push({
+            points: greenMeridianPoints,
+            color: 'rgba(0, 255, 0, 0.5)',
+            type: 'equatorial'
+        });
         
         // Right ascension lines (meridians)
-        for (let ra = 0; ra < 24; ra += 2) {
+        for (let ra = 2; ra < 24; ra += 2) {
             const points = [];
             for (let dec = -90; dec <= 90; dec += 5) {
                 const coords = this.equatorialToCartesian(ra, dec);
@@ -1240,9 +1557,179 @@ class SkyRenderer {
             }
             this.gridLines.push({
                 points,
-                color: 'rgba(50, 50, 100, 0.3)'
+                color: 'rgba(50, 50, 150, 0.3)',
+                type: 'equatorial'
             });
         }
+
+        // Ecliptic line (yellow)
+        const eclipticPoints = [];
+        const obliquity = 23.4367 * Math.PI / 180; // Earth's axial tilt in radians
+        
+        // Calculate ecliptic points using proper spherical geometry
+        for (let lon = 0; lon <= 360; lon += 2) {
+            const lonRad = lon * Math.PI / 180;
+            
+            // Convert ecliptic coordinates to equatorial
+            const sinDec = Math.sin(obliquity) * Math.sin(lonRad);
+            const dec = Math.asin(sinDec);
+            const ra = Math.atan2(
+                Math.cos(obliquity) * Math.sin(lonRad),
+                Math.cos(lonRad)
+            );
+            
+            // Convert to hours for RA
+            const raHours = ((ra * 12 / Math.PI) + 24) % 24;
+            const decDeg = dec * 180 / Math.PI;
+            
+            const coords = this.equatorialToCartesian(raHours, decDeg);
+            eclipticPoints.push({
+                ...coords,
+                ra: raHours,
+                dec: decDeg
+            });
+        }
+        
+        this.gridLines.push({
+            points: eclipticPoints,
+            color: 'rgba(255, 255, 0, 0.5)', // Bright yellow with 50% opacity
+            type: 'ecliptic'
+        });
+
+        // Galactic grid (red)
+        // Galactic latitude lines
+        for (let b = -75; b <= 75; b += 15) {
+            const points = [];
+            for (let l = 0; l <= 360; l += 5) {
+                const coords = this.galacticToCartesian(l, b);
+                points.push({
+                    ...coords,
+                    l: l,
+                    b: b
+                });
+            }
+            this.gridLines.push({
+                points,
+                color: 'rgba(150, 50, 50, 0.3)',
+                type: 'galactic'
+            });
+        }
+
+        // Galactic longitude lines
+        for (let l = 0; l < 360; l += 30) {
+            const points = [];
+            for (let b = -90; b <= 90; b += 5) {
+                const coords = this.galacticToCartesian(l, b);
+                points.push({
+                    ...coords,
+                    l: l,
+                    b: b
+                });
+            }
+            this.gridLines.push({
+                points,
+                color: 'rgba(150, 50, 50, 0.3)',
+                type: 'galactic'
+            });
+        }
+
+        // Special line for galactic equator
+        const galacticEquatorPoints = [];
+        for (let l = 0; l <= 360; l += 2) {
+            const coords = this.galacticToCartesian(l, 0);
+            galacticEquatorPoints.push({
+                ...coords,
+                l: l,
+                b: 0
+            });
+        }
+        this.gridLines.push({
+            points: galacticEquatorPoints,
+            color: 'rgba(255, 100, 100, 0.5)',
+            type: 'galactic'
+        });
+
+        // Azimuthal grid (green)
+        // Altitude lines
+        for (let alt = 0; alt <= 90; alt += 15) {
+            const points = [];
+            for (let az = 0; az <= 360; az += 5) {
+                const coords = this.azimuthalToCartesian(az, alt);
+                points.push({
+                    ...coords,
+                    az: az,
+                    alt: alt
+                });
+            }
+            this.gridLines.push({
+                points,
+                color: 'rgba(50, 150, 50, 0.3)',
+                type: 'azimuthal'
+            });
+        }
+
+        // Azimuth lines
+        for (let az = 0; az < 360; az += 30) {
+            const points = [];
+            for (let alt = 0; alt <= 90; alt += 5) {
+                const coords = this.azimuthalToCartesian(az, alt);
+                points.push({
+                    ...coords,
+                    az: az,
+                    alt: alt
+                });
+            }
+            this.gridLines.push({
+                points,
+                color: 'rgba(50, 150, 50, 0.3)',
+                type: 'azimuthal'
+            });
+        }
+    }
+
+    galacticToCartesian(l, b) {
+        // Convert galactic coordinates to equatorial
+        const lRad = l * Math.PI / 180;
+        const bRad = b * Math.PI / 180;
+        
+        // Galactic pole in equatorial coordinates (J2000)
+        const alphaGP = 192.859508 * Math.PI / 180;  // RA of galactic north pole
+        const deltaGP = 27.128336 * Math.PI / 180;   // Dec of galactic north pole
+        const lCP = 122.932 * Math.PI / 180;         // Galactic longitude of celestial pole
+        
+        // Calculate equatorial coordinates
+        const sinb = Math.sin(bRad);
+        const cosb = Math.cos(bRad);
+        const sinlcp_l = Math.sin(lCP - lRad);
+        const coslcp_l = Math.cos(lCP - lRad);
+        
+        const sindelta = sinb * Math.sin(deltaGP) + cosb * Math.cos(deltaGP) * coslcp_l;
+        const delta = Math.asin(sindelta);
+        
+        const y = cosb * sinlcp_l;
+        const x = sinb * Math.cos(deltaGP) - cosb * Math.sin(deltaGP) * coslcp_l;
+        const alpha = alphaGP - Math.atan2(y, x);
+        
+        // Convert to cartesian coordinates
+        return {
+            x: Math.cos(delta) * Math.cos(alpha),
+            y: Math.cos(delta) * Math.sin(alpha),
+            z: Math.sin(delta)
+        };
+    }
+
+    azimuthalToCartesian(az, alt) {
+        // Convert azimuth and altitude to equatorial coordinates
+        // This is a simplified version that assumes the observer is at the equator
+        // For real implementation, we would need the observer's latitude and longitude
+        const azRad = az * Math.PI / 180;
+        const altRad = alt * Math.PI / 180;
+        
+        return {
+            x: Math.cos(altRad) * Math.sin(azRad),
+            y: Math.cos(altRad) * Math.cos(azRad),
+            z: Math.sin(altRad)
+        };
     }
 
     equatorialToCartesian(ra, dec) {
