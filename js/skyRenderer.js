@@ -830,6 +830,10 @@ class SkyRenderer {
         if (this.visibility.showMeteors && this.meteorShowers) {
             this.drawMeteorShowers();
         }
+
+        // Draw 3D cardinal directions
+        this.draw3DCardinalDirections();
+
         // Draw connection lines for all active stars and update their positions
         if (this.activeStars.size > 0) {
             const ctx = this.ctx2d;
@@ -1214,6 +1218,147 @@ class SkyRenderer {
             Math.max(0, Math.min(1, g)),
             Math.max(0, Math.min(1, b))
         ];
+    }
+
+    // Add this method to the SkyRenderer class for 3D cardinal directions
+    draw3DCardinalDirections() {
+        const ctx = this.gl; // Assuming you're using WebGL context for 3D rendering
+        const positions = [
+            { label: 'N', x: 0, y: 1, z: 0 }, // North
+            { label: 'NE', x: 0.707, y: 0.707, z: 0 }, // North-East
+            { label: 'E', x: 1, y: 0, z: 0 }, // East
+            { label: 'SE', x: 0.707, y: -0.707, z: 0 }, // South-East
+            { label: 'S', x: 0, y: -1, z: 0 }, // South
+            { label: 'SW', x: -0.707, y: -0.707, z: 0 }, // South-West
+            { label: 'W', x: -1, y: 0, z: 0 }, // West
+            { label: 'NW', x: -0.707, y: 0.707, z: 0 } // North-West
+        ];
+
+        positions.forEach(pos => {
+            this.render3DLabel(pos.label, pos.x, pos.y, pos.z);
+        });
+    }
+
+    // Add this method to the SkyRenderer class for rendering 3D labels
+    render3DLabel(label, x, y, z) {
+        // Implement the logic to render the label in 3D space
+        // This could involve setting up a 3D text rendering system or using a sprite
+        // For example, using a 3D canvas or a library like three.js
+        // Placeholder for actual rendering logic
+        const ctx = this.ctx2d;
+        const pos = this.projectPoint({ x, y, z });
+        if (pos) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, pos.x, pos.y);
+        }
+    }
+
+    // Update the render method to call draw3DCardinalDirections
+    render(currentTime = new Date()) {
+        this.resize();
+
+        // Clear canvases
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        if (this.ctx2d) {
+            this.ctx2d.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+        }
+
+        // Update matrices for camera view (without Earth rotation)
+        this.updateMatrices();
+
+        // Update star positions based on current time
+        if (this.stars) {
+            this.updateStarData(this.stars, currentTime);
+        }
+
+        // Draw elements based on visibility settings
+        if (this.visibility.showGrid && this.gridLines) {
+            this.drawGrid(this.projectionType);
+        }
+
+        if (this.visibility.showStars && this.stars) {
+            this.drawStars();
+        }
+
+        if ((this.visibility.showNebulae || this.visibility.showGalaxies || this.visibility.showClusters) && this.deepSkyObjects) {
+            this.drawDeepSkyObjects();
+        }
+
+        if (this.visibility.showMeteors && this.meteorShowers) {
+            this.drawMeteorShowers();
+        }
+
+        // Draw 3D cardinal directions
+        this.draw3DCardinalDirections();
+
+        // Draw connection lines for all active stars and update their positions
+        if (this.activeStars.size > 0) {
+            const ctx = this.ctx2d;
+            const canvasRect = this.canvas.getBoundingClientRect();
+
+            this.activeStars.forEach((info, starId) => {
+                const starPos = this.projectPoint(info.star);
+                if (starPos) {
+                    // Update info window position to follow star if it's near the edge
+                    const windowRect = info.infoWindow.getBoundingClientRect();
+                    const canvasWidth = this.canvas.width;
+                    const canvasHeight = this.canvas.height;
+                    
+                    // Check if star is near canvas edge
+                    const edgeMargin = 100;
+                    if (starPos.x < edgeMargin || starPos.x > canvasWidth - edgeMargin ||
+                        starPos.y < edgeMargin || starPos.y > canvasHeight - edgeMargin) {
+                        
+                        // Calculate new window position that keeps it visible
+                        let newLeft = parseFloat(info.infoWindow.style.left);
+                        let newTop = parseFloat(info.infoWindow.style.top);
+                        
+                        if (starPos.x < edgeMargin) newLeft = starPos.x + 20;
+                        if (starPos.x > canvasWidth - edgeMargin) newLeft = starPos.x - windowRect.width - 20;
+                        if (starPos.y < edgeMargin) newTop = starPos.y + 20;
+                        if (starPos.y > canvasHeight - edgeMargin) newTop = starPos.y - windowRect.height - 20;
+                        
+                        // Keep window within canvas bounds
+                        newLeft = Math.max(0, Math.min(newLeft, canvasWidth - windowRect.width));
+                        newTop = Math.max(0, Math.min(newTop, canvasHeight - windowRect.height));
+                        
+                        info.infoWindow.style.left = `${newLeft}px`;
+                        info.infoWindow.style.top = `${newTop}px`;
+                    }
+
+                    // Draw connection line
+                    const infoRect = info.infoWindow.getBoundingClientRect();
+                    const infoLeft = infoRect.left - canvasRect.left;
+                    const infoTop = infoRect.top - canvasRect.top;
+                    const infoRight = infoLeft + infoRect.width;
+                    const infoBottom = infoTop + infoRect.height;
+
+                    const corners = [
+                        { x: infoLeft, y: infoTop },
+                        { x: infoRight, y: infoTop },
+                        { x: infoLeft, y: infoBottom },
+                        { x: infoRight, y: infoBottom }
+                    ];
+
+                    let connectionPoint = corners.reduce((prev, curr) => {
+                        return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) <
+                               Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
+                    }, corners[0]);
+
+                    // Draw dotted line
+                    ctx.beginPath();
+                    ctx.setLineDash([5, 5]);
+                    ctx.moveTo(starPos.x, starPos.y);
+                    ctx.lineTo(connectionPoint.x, connectionPoint.y);
+                    ctx.strokeStyle = '#666';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            });
+        }
     }
 } 
 
