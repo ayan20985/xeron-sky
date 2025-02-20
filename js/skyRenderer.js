@@ -150,7 +150,9 @@ class SkyRenderer {
                 vec4 pos = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0);
                 gl_Position = pos;
                 float size = pow(2.0, (6.0 - aMagnitude)) * 2.0;
-                gl_PointSize = max(size / pos.w, 1.0);
+                float pointSize = size / pos.w;
+                pointSize = clamp(pointSize, 3.0, 10.0);
+                gl_PointSize = pointSize;
                 vMagnitude = aMagnitude;
                 vColor = aColor;
             }
@@ -921,19 +923,19 @@ class SkyRenderer {
         // More pronounced color differences
         switch (type) {
             case 'O':  // Hot blue stars (30,000-60,000K)
-                return [0.8, 0.8, 1.0];
+                return [0.7, 0.7, 1.0];
             case 'B':  // Blue to blue-white (10,000-30,000K)
-                return [0.8, 0.9, 1.0];
+                return [0.7, 0.85, 1.0];
             case 'A':  // White (7,500-10,000K)
                 return [1.0, 1.0, 1.0];
             case 'F':  // Yellow-white (6,000-7,500K)
-                return [1.0, 1.0, 0.9];
+                return [1.0, 0.98, 0.85];
             case 'G':  // Yellow (5,000-6,000K)
-                return [1.0, 1.0, 0.7];
+                return [1.0, 0.95, 0.6];
             case 'K':  // Orange (3,500-5,000K)
-                return [1.0, 0.9, 0.7];
+                return [1.0, 0.85, 0.6];
             case 'M':  // Red (2,000-3,500K)
-                return [1.0, 0.7, 0.7];
+                return [1.0, 0.6, 0.6];
             default:
                 return [1.0, 1.0, 1.0];  // Default to white
         }
@@ -963,3 +965,4 @@ class SkyRenderer {
         ];
     }
 } 
+
