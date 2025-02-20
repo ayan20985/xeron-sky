@@ -279,6 +279,98 @@ class SkyRenderer {
         canvas.addEventListener('mouseleave', () => {
             isDragging = false;
         });
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            if (!this.stars) {
+                console.warn('No stars available.');
+                return;
+            }
+            let closestStar = null;
+            let minDistance = Infinity;
+            this.stars.forEach(star => {
+                const projected = this.projectPoint(star);
+                if (projected) {
+                    const dx = projected.x - mouseX;
+                    const dy = projected.y - mouseY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestStar = star;
+                    }
+                }
+            });
+            if (minDistance < 10 && closestStar) {
+                // Remove any existing info window
+                if (this.infoWindow) {
+                    this.infoWindow.remove();
+                }
+                this.activeStar = closestStar;
+                const infoDiv = document.createElement('div');
+                infoDiv.style.position = 'absolute';
+                if (this.infoWindowPosition) {
+                    infoDiv.style.left = this.infoWindowPosition.left;
+                    infoDiv.style.top = this.infoWindowPosition.top;
+                } else {
+                    infoDiv.style.left = (mouseX + 20) + 'px';
+                    infoDiv.style.top = (mouseY - 20) + 'px';
+                }
+                infoDiv.style.padding = '10px';
+                infoDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                infoDiv.style.color = 'white';
+                infoDiv.style.border = '1px solid white';
+                infoDiv.style.borderRadius = '5px';
+                infoDiv.style.zIndex = '1001';
+                infoDiv.innerHTML = '<pre style="margin:0; font-size:12px;">' + JSON.stringify(closestStar, null, 2) + '</pre>';
+                const closeBtn = document.createElement('button');
+                closeBtn.innerHTML = '&times;';
+                closeBtn.style.fontSize = '16px';
+                closeBtn.style.lineHeight = '16px';
+                closeBtn.style.padding = '0';
+                closeBtn.style.background = 'transparent';
+                closeBtn.style.border = 'none';
+                closeBtn.style.color = 'white';
+                closeBtn.style.cursor = 'pointer';
+                closeBtn.addEventListener('click', () => {
+                    infoDiv.remove();
+                    this.infoWindow = null;
+                    this.activeStar = null;
+                    this.render();
+                });
+                const headerDiv = document.createElement('div');
+                headerDiv.style.display = 'flex';
+                headerDiv.style.justifyContent = 'flex-end';
+                headerDiv.style.cursor = 'move';
+                headerDiv.appendChild(closeBtn);
+                headerDiv.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const rect = infoDiv.getBoundingClientRect();
+                    const origLeft = rect.left;
+                    const origTop = rect.top;
+                    const onMouseMove = (evt) => {
+                        const newLeft = origLeft + (evt.clientX - startX);
+                        const newTop = origTop + (evt.clientY - startY);
+                        infoDiv.style.left = newLeft + 'px';
+                        infoDiv.style.top = newTop + 'px';
+                        evt.preventDefault();
+                    };
+                    const onMouseUp = (evt) => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                        this.infoWindowPosition = { left: infoDiv.style.left, top: infoDiv.style.top };
+                    };
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+                infoDiv.insertBefore(headerDiv, infoDiv.firstChild);
+                canvas.parentNode.appendChild(infoDiv);
+                this.infoWindow = infoDiv;
+                this.render();
+            }
+        });
 
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -683,6 +775,35 @@ class SkyRenderer {
 
         if (this.visibility.showMeteors && this.meteorShowers) {
             this.drawMeteorShowers();
+        }
+        if (this.activeStar && this.infoWindow) {
+            const ctx = this.ctx2d;
+            const canvasRect = this.canvas.getBoundingClientRect();
+            const starPos = this.projectPoint(this.activeStar);
+            if (starPos) {
+                const infoRect = this.infoWindow.getBoundingClientRect();
+                const infoLeft = infoRect.left - canvasRect.left;
+                const infoTop = infoRect.top - canvasRect.top;
+                const infoRight = infoLeft + infoRect.width;
+                const infoBottom = infoTop + infoRect.height;
+                
+                const corners = [
+                    { x: infoLeft, y: infoTop },
+                    { x: infoRight, y: infoTop },
+                    { x: infoLeft, y: infoBottom },
+                    { x: infoRight, y: infoBottom }
+                ];
+                let connectionPoint = corners.reduce((prev, curr) => {
+                    return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) < Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
+                }, corners[0]);
+                
+                ctx.beginPath();
+                ctx.moveTo(starPos.x, starPos.y);
+                ctx.lineTo(connectionPoint.x, connectionPoint.y);
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
         }
     }
 
