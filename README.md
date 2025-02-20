@@ -5,8 +5,10 @@ find me at the end of time.
 - run `python -m http.server` (trust me it works, no idea why lmao)
 - check at `http://localhost:8000/` in browser
 
-# fun stuff
+# rendering types
 - spherical rendering (3D)
 - stereographic
 - mercator
 - hammer-aitoff
+
+# screenshots
