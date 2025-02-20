@@ -17,6 +17,9 @@ class SkyRenderer {
         canvas.parentNode.appendChild(this.overlayCanvas);
         this.ctx2d = this.overlayCanvas.getContext('2d');
 
+        // Store active stars and their info windows
+        this.activeStars = new Map(); // Map of star ID to {star, infoWindow} objects
+
         // Add visibility settings first
         this.visibility = {
             showGrid: true,
@@ -302,20 +305,10 @@ class SkyRenderer {
                 }
             });
             if (minDistance < 10 && closestStar) {
-                // Remove any existing info window
-                if (this.infoWindow) {
-                    this.infoWindow.remove();
-                }
-                this.activeStar = closestStar;
                 const infoDiv = document.createElement('div');
                 infoDiv.style.position = 'absolute';
-                if (this.infoWindowPosition) {
-                    infoDiv.style.left = this.infoWindowPosition.left;
-                    infoDiv.style.top = this.infoWindowPosition.top;
-                } else {
-                    infoDiv.style.left = (mouseX + 20) + 'px';
-                    infoDiv.style.top = (mouseY - 20) + 'px';
-                }
+                infoDiv.style.left = (mouseX + 20) + 'px';
+                infoDiv.style.top = (mouseY - 20) + 'px';
                 infoDiv.style.padding = '5px';
                 infoDiv.style.backgroundColor = '#222';
                 infoDiv.style.color = '#fff';
@@ -370,6 +363,9 @@ class SkyRenderer {
                 rawTab.addEventListener('click', showRaw);
                 infoDiv.appendChild(tabContainer);
                 infoDiv.appendChild(contentContainer);
+                const starId = closestStar.id;
+                
+                // Create header with close button
                 const closeBtn = document.createElement('button');
                 closeBtn.innerHTML = '&times;';
                 closeBtn.style.fontSize = '16px';
@@ -380,11 +376,12 @@ class SkyRenderer {
                 closeBtn.style.color = 'white';
                 closeBtn.style.cursor = 'pointer';
                 closeBtn.addEventListener('click', () => {
+                    this.activeStars.delete(starId);
                     infoDiv.remove();
-                    this.infoWindow = null;
-                    this.activeStar = null;
                     this.render();
                 });
+
+                // Create draggable header
                 const headerDiv = document.createElement('div');
                 headerDiv.style.display = 'flex';
                 headerDiv.style.justifyContent = 'flex-end';
@@ -397,6 +394,7 @@ class SkyRenderer {
                     const rect = infoDiv.getBoundingClientRect();
                     const origLeft = rect.left;
                     const origTop = rect.top;
+                    
                     const onMouseMove = (evt) => {
                         const newLeft = origLeft + (evt.clientX - startX);
                         const newTop = origTop + (evt.clientY - startY);
@@ -404,17 +402,21 @@ class SkyRenderer {
                         infoDiv.style.top = newTop + 'px';
                         evt.preventDefault();
                     };
-                    const onMouseUp = (evt) => {
+                    
+                    const onMouseUp = () => {
                         document.removeEventListener('mousemove', onMouseMove);
                         document.removeEventListener('mouseup', onMouseUp);
-                        this.infoWindowPosition = { left: infoDiv.style.left, top: infoDiv.style.top };
                     };
+                    
                     document.addEventListener('mousemove', onMouseMove);
                     document.addEventListener('mouseup', onMouseUp);
                 });
+                
                 infoDiv.insertBefore(headerDiv, infoDiv.firstChild);
                 canvas.parentNode.appendChild(infoDiv);
-                this.infoWindow = infoDiv;
+                
+                // Store the star and its info window
+                this.activeStars.set(starId, { star: closestStar, infoWindow: infoDiv });
                 this.render();
             }
         });
@@ -471,14 +473,14 @@ class SkyRenderer {
         }
     }
 
-    updateStarData(stars) {
+    updateStarData(stars, currentTime = new Date()) {
         if (!stars || stars.length === 0) {
             console.error('No stars provided to updateStarData');
             return;
         }
 
         this.stars = stars;
-        const transformedStars = this.transformStarsForProjection(stars, this.projectionType);
+        const transformedStars = this.transformStarsForProjection(stars, this.projectionType, currentTime);
         
         const positions = new Float32Array(transformedStars.length * 3);
         const magnitudes = new Float32Array(transformedStars.length);
@@ -795,7 +797,7 @@ class SkyRenderer {
         }
     }
 
-    render() {
+    render(currentTime = new Date()) {
         this.resize();
 
         // Clear canvases
@@ -804,8 +806,13 @@ class SkyRenderer {
             this.ctx2d.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
         }
 
-        // Update matrices
+        // Update matrices for camera view (without Earth rotation)
         this.updateMatrices();
+
+        // Update star positions based on current time
+        if (this.stars) {
+            this.updateStarData(this.stars, currentTime);
+        }
 
         // Draw elements based on visibility settings
         if (this.visibility.showGrid && this.gridLines) {
@@ -823,34 +830,71 @@ class SkyRenderer {
         if (this.visibility.showMeteors && this.meteorShowers) {
             this.drawMeteorShowers();
         }
-        if (this.activeStar && this.infoWindow) {
+        // Draw connection lines for all active stars and update their positions
+        if (this.activeStars.size > 0) {
             const ctx = this.ctx2d;
             const canvasRect = this.canvas.getBoundingClientRect();
-            const starPos = this.projectPoint(this.activeStar);
-            if (starPos) {
-                const infoRect = this.infoWindow.getBoundingClientRect();
-                const infoLeft = infoRect.left - canvasRect.left;
-                const infoTop = infoRect.top - canvasRect.top;
-                const infoRight = infoLeft + infoRect.width;
-                const infoBottom = infoTop + infoRect.height;
-                
-                const corners = [
-                    { x: infoLeft, y: infoTop },
-                    { x: infoRight, y: infoTop },
-                    { x: infoLeft, y: infoBottom },
-                    { x: infoRight, y: infoBottom }
-                ];
-                let connectionPoint = corners.reduce((prev, curr) => {
-                    return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) < Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
-                }, corners[0]);
-                
-                ctx.beginPath();
-                ctx.moveTo(starPos.x, starPos.y);
-                ctx.lineTo(connectionPoint.x, connectionPoint.y);
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
+
+            this.activeStars.forEach((info, starId) => {
+                const starPos = this.projectPoint(info.star);
+                if (starPos) {
+                    // Update info window position to follow star if it's near the edge
+                    const windowRect = info.infoWindow.getBoundingClientRect();
+                    const canvasWidth = this.canvas.width;
+                    const canvasHeight = this.canvas.height;
+                    
+                    // Check if star is near canvas edge
+                    const edgeMargin = 100;
+                    if (starPos.x < edgeMargin || starPos.x > canvasWidth - edgeMargin ||
+                        starPos.y < edgeMargin || starPos.y > canvasHeight - edgeMargin) {
+                        
+                        // Calculate new window position that keeps it visible
+                        let newLeft = parseFloat(info.infoWindow.style.left);
+                        let newTop = parseFloat(info.infoWindow.style.top);
+                        
+                        if (starPos.x < edgeMargin) newLeft = starPos.x + 20;
+                        if (starPos.x > canvasWidth - edgeMargin) newLeft = starPos.x - windowRect.width - 20;
+                        if (starPos.y < edgeMargin) newTop = starPos.y + 20;
+                        if (starPos.y > canvasHeight - edgeMargin) newTop = starPos.y - windowRect.height - 20;
+                        
+                        // Keep window within canvas bounds
+                        newLeft = Math.max(0, Math.min(newLeft, canvasWidth - windowRect.width));
+                        newTop = Math.max(0, Math.min(newTop, canvasHeight - windowRect.height));
+                        
+                        info.infoWindow.style.left = `${newLeft}px`;
+                        info.infoWindow.style.top = `${newTop}px`;
+                    }
+
+                    // Draw connection line
+                    const infoRect = info.infoWindow.getBoundingClientRect();
+                    const infoLeft = infoRect.left - canvasRect.left;
+                    const infoTop = infoRect.top - canvasRect.top;
+                    const infoRight = infoLeft + infoRect.width;
+                    const infoBottom = infoTop + infoRect.height;
+
+                    const corners = [
+                        { x: infoLeft, y: infoTop },
+                        { x: infoRight, y: infoTop },
+                        { x: infoLeft, y: infoBottom },
+                        { x: infoRight, y: infoBottom }
+                    ];
+
+                    let connectionPoint = corners.reduce((prev, curr) => {
+                        return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) <
+                               Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
+                    }, corners[0]);
+
+                    // Draw dotted line
+                    ctx.beginPath();
+                    ctx.setLineDash([5, 5]);
+                    ctx.moveTo(starPos.x, starPos.y);
+                    ctx.lineTo(connectionPoint.x, connectionPoint.y);
+                    ctx.strokeStyle = '#666';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            });
         }
     }
 
@@ -969,23 +1013,46 @@ class SkyRenderer {
         return { x, y };
     }
 
-    transformStarsForProjection(stars, type) {
+    transformStarsForProjection(stars, type, currentTime = new Date()) {
         if (!stars || stars.length === 0) return [];
+
+        // Calculate Earth's rotation based on UTC time
+        const utcHours = currentTime.getUTCHours();
+        const utcMinutes = currentTime.getUTCMinutes();
+        const utcSeconds = currentTime.getUTCSeconds();
+        const utcMillis = currentTime.getUTCMilliseconds();
+        
+        // Convert time to decimal hours
+        const totalHours = utcHours + (utcMinutes / 60) + (utcSeconds / 3600) + (utcMillis / 3600000);
+        
+        // Calculate Earth's rotation angle (15 degrees per hour)
+        const earthRotationAngle = (totalHours * 15) * (Math.PI / 180);
         
         return stars.map(star => {
+            // First rotate the star based on Earth's rotation
+            const rotatedRA = star.ra + (earthRotationAngle * 12 / Math.PI); // Convert radians to hours
+            
+            // Then apply projection
             let coords;
             switch(type) {
                 case 'stereographic':
-                    coords = this.equatorialToStereographic(star.ra, star.dec);
+                    coords = this.equatorialToStereographic(rotatedRA, star.dec);
                     break;
                 case 'mercator':
-                    coords = this.equatorialToMercator(star.ra, star.dec);
+                    coords = this.equatorialToMercator(rotatedRA, star.dec);
                     break;
                 case 'hammer':
-                    coords = this.equatorialToHammer(star.ra, star.dec);
+                    coords = this.equatorialToHammer(rotatedRA, star.dec);
                     break;
                 default:
-                    coords = { x: star.x, y: star.y, z: star.z };
+                    // For spherical projection, calculate 3D coordinates with rotated RA
+                    const raRad = rotatedRA * Math.PI / 12; // Convert hours to radians
+                    const decRad = star.dec * Math.PI / 180; // Convert degrees to radians
+                    coords = {
+                        x: Math.cos(decRad) * Math.cos(raRad),
+                        y: Math.cos(decRad) * Math.sin(raRad),
+                        z: Math.sin(decRad)
+                    };
             }
             return { ...star, ...coords };
         });
@@ -1008,10 +1075,15 @@ class SkyRenderer {
     }
 
     equatorialToMercator(ra, dec) {
-        // Mercator projection
-        const raRad = (ra * 15 - 180) * Math.PI / 180;  // Convert to [-180, 180] range
-        const decRad = Math.max(Math.min(dec * Math.PI / 180, 1.4835), -1.4835); // Limit to ~85 degrees
+        // Handle wrapping for Mercator projection
+        let normalizedRA = ra * 15; // Convert hours to degrees
+        while (normalizedRA > 360) normalizedRA -= 360;
+        while (normalizedRA < 0) normalizedRA += 360;
         
+        // Convert to radians and shift to [-180, 180] range
+        const raRad = ((normalizedRA + 180) % 360 - 180) * Math.PI / 180;
+        const decRad = Math.max(Math.min(dec * Math.PI / 180, 1.4835), -1.4835); // Limit to ~85 degrees
+
         return {
             x: raRad,
             y: Math.log(Math.tan(Math.PI/4 + decRad/2)),
@@ -1020,16 +1092,28 @@ class SkyRenderer {
     }
 
     equatorialToHammer(ra, dec) {
-        // Hammer-Aitoff projection
-        const raRad = (ra * 15 - 180) * Math.PI / 180;  // Convert to [-180, 180] range
+        // Normalize RA to handle wrapping
+        let normalizedRA = ra * 15; // Convert hours to degrees
+        while (normalizedRA > 360) normalizedRA -= 360;
+        while (normalizedRA < 0) normalizedRA += 360;
+        
+        // Convert to radians, centered on 0
+        const raRad = ((normalizedRA + 180) % 360 - 180) * Math.PI / 180;
         const decRad = dec * Math.PI / 180;
         
-        const cosDecSinRaHalf = Math.cos(decRad) * Math.sin(raRad/2);
-        const z = Math.sqrt(1 + Math.cos(decRad) * Math.cos(raRad/2));
+        const alphaPrime = raRad / 2;
+        const cosAlpha = Math.cos(alphaPrime);
+        const cosDec = Math.cos(decRad);
+        const sinDec = Math.sin(decRad);
         
+        // Calculate denominator first to avoid division by zero
+        const denom = Math.sqrt(1 + cosDec * cosAlpha);
+        if (denom === 0) return { x: 0, y: 0, z: 0 };
+        
+        // Apply Hammer-Aitoff projection formulas
         return {
-            x: 2 * Math.sqrt(2) * cosDecSinRaHalf / z,
-            y: Math.sqrt(2) * Math.sin(decRad) / z,
+            x: 2 * Math.sqrt(2) * cosDec * Math.sin(alphaPrime) / denom,
+            y: Math.sqrt(2) * sinDec / denom,
             z: 0
         };
     }
