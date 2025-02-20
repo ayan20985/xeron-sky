@@ -1175,27 +1175,26 @@ class SkyRenderer {
         // More pronounced color differences
         switch (type) {
             case 'O':  // Hot blue stars (30,000-60,000K)
-                return [0.7, 0.7, 1.0];
+                return [0.4, 0.4, 1.0]; // More blue
             case 'B':  // Blue to blue-white (10,000-30,000K)
-                return [0.7, 0.85, 1.0];
+                return [0.5, 0.7, 1.0]; // More blue
             case 'A':  // White (7,500-10,000K)
-                return [1.0, 1.0, 1.0];
+                return [1.0, 1.0, 1.0]; // No change
             case 'F':  // Yellow-white (6,000-7,500K)
-                return [1.0, 0.98, 0.85];
+                return [1.0, 0.9, 0.7]; // More yellow
             case 'G':  // Yellow (5,000-6,000K)
-                return [1.0, 0.95, 0.6];
+                return [1.0, 0.8, 0.4]; // More yellow
             case 'K':  // Orange (3,500-5,000K)
-                return [1.0, 0.85, 0.6];
+                return [1.0, 0.6, 0.2]; // More orange
             case 'M':  // Red (2,000-3,500K)
-                return [1.0, 0.6, 0.6];
+                return [1.0, 0.2, 0.2]; // More red
             default:
                 return [1.0, 1.0, 1.0];  // Default to white
         }
     }
-
+    
     colorIndexToRGB(colorIndex) {
         if (typeof colorIndex !== 'number') return [1, 1, 1];
-        
         let r = 1.0;
         let g = 1.0;
         let b = 1.0;
