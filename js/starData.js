@@ -59,19 +59,6 @@ class StarData {
         
         return data.data
             .map(star => {
-                // Log a sample of stars to verify data format
-                if (star[0] <= 5) {
-                    console.log('Sample star data:', {
-                        HR: star[0],
-                        RA: star[1],
-                        DEC: star[2],
-                        Vmag: star[3],
-                        BV: star[4],
-                        SpType: star[5],
-                        Name: star[6]
-                    });
-                }
-
                 const ra = parseFloat(star[1]) / 15;
                 const dec = parseFloat(star[2]);
                 const raRad = ra * Math.PI / 12;
@@ -80,17 +67,6 @@ class StarData {
                 const colorIndex = parseFloat(star[4]);
                 const spectralType = star[5]?.trim();
 
-                // Validate color-related data
-                if (star[0] <= 5) {
-                    console.log('Color data:', {
-                        id: star[0],
-                        colorIndex,
-                        spectralType,
-                        isValidColorIndex: !isNaN(colorIndex),
-                        isValidSpectralType: Boolean(spectralType)
-                    });
-                }
-                
                 return {
                     id: `HR ${star[0]}`,
                     name: star[6]?.trim() || `HR ${star[0]}`,
