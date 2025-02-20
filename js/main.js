@@ -22,74 +22,60 @@ class NightSky {
 
     createTimeControls() {
         const controls = document.createElement('div');
-        controls.style.position = 'absolute';
-        controls.style.bottom = '20px';
-        controls.style.left = '50%';
-        controls.style.transform = 'translateX(-50%)';
-        controls.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        controls.style.padding = '10px';
-        controls.style.borderRadius = '5px';
-        controls.style.display = 'flex';
-        controls.style.gap = '10px';
-        controls.style.alignItems = 'center';
-        controls.style.zIndex = '1000';
+        controls.className = 'control-panel bottom';
 
         // Rewind button
         const rewindBtn = document.createElement('button');
+        rewindBtn.className = 'xeron-button';
         rewindBtn.innerHTML = '⇤';
         rewindBtn.onclick = () => {
             if (this.timeSpeed >= 0) {
-                this.timeSpeed = -60;
+                this.timeSpeed = -2;
             } else {
-                this.timeSpeed *= 2; // Double the current reverse speed
+                this.timeSpeed *= 2;
             }
         };
-        this.styleButton(rewindBtn);
 
         // Play/Pause button
         const playPauseBtn = document.createElement('button');
+        playPauseBtn.className = 'xeron-button';
         playPauseBtn.innerHTML = '⏸';
-        playPauseBtn.style.width = '40px'; // Fixed width for better centering
+        playPauseBtn.style.width = '40px';
         playPauseBtn.onclick = () => {
             this.timeSpeed = this.timeSpeed !== 0 ? 0 : 1;
             playPauseBtn.innerHTML = this.timeSpeed === 0 ? '▶' : '⏸';
         };
-        this.styleButton(playPauseBtn);
 
         // Fast forward button
         const ffwdBtn = document.createElement('button');
+        ffwdBtn.className = 'xeron-button';
         ffwdBtn.innerHTML = '⇥';
         ffwdBtn.onclick = () => {
             if (this.timeSpeed <= 0) {
-                this.timeSpeed = 60;
+                this.timeSpeed = 2;
             } else {
-                this.timeSpeed *= 2; // Double the current forward speed
+                this.timeSpeed *= 2;
             }
         };
-        this.styleButton(ffwdBtn);
 
         // Speed display
         const speedDisplay = document.createElement('span');
-        speedDisplay.style.color = 'white';
-        speedDisplay.style.minWidth = '100px';
-        speedDisplay.style.textAlign = 'center';
+        speedDisplay.className = 'display-text';
 
         // Current time display
         const timeDisplay = document.createElement('span');
-        timeDisplay.style.color = 'white';
-        timeDisplay.style.minWidth = '200px';
-        timeDisplay.style.textAlign = 'center';
+        timeDisplay.className = 'display-text large';
 
         // Reset time button
         const resetBtn = document.createElement('button');
+        resetBtn.className = 'xeron-button';
         resetBtn.innerHTML = '⟲';
-        resetBtn.style.width = '40px'; // Fixed width for better centering
+        resetBtn.style.width = '40px';
         resetBtn.onclick = () => {
             this.currentTime = new Date();
             this.timeSpeed = 1;
             playPauseBtn.innerHTML = '⏸';
         };
-        this.styleButton(resetBtn);
 
         // Update displays
         setInterval(() => {
@@ -108,23 +94,6 @@ class NightSky {
         controls.appendChild(resetBtn);
 
         this.canvas.parentNode.appendChild(controls);
-    }
-
-    styleButton(btn) {
-        btn.style.backgroundColor = '#333';
-        btn.style.color = 'white';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '3px';
-        btn.style.padding = '5px 10px';
-        btn.style.cursor = 'pointer';
-        btn.style.fontSize = '16px';
-        btn.style.textAlign = 'center';
-        btn.style.display = 'flex';
-        btn.style.alignItems = 'center';
-        btn.style.justifyContent = 'center';
-        btn.style.minWidth = '30px';
-        btn.onmouseover = () => btn.style.backgroundColor = '#444';
-        btn.onmouseout = () => btn.style.backgroundColor = '#333';
     }
 
     displayError(message) {

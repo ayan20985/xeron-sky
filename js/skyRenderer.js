@@ -290,25 +290,45 @@ class SkyRenderer {
                 console.warn('No stars available.');
                 return;
             }
+
+            // Use the same time as the current render
+            const currentTime = this.currentRenderTime || new Date();
+            
+            // Store the current time so it can be used when creating the info window
+            this.lastClickTime = currentTime;
+            
+            const transformedStars = this.transformStarsForProjection(this.stars, this.projectionType, currentTime);
+            
+            // Update matrices to ensure correct projection
+            this.updateMatrices();
+            
             let closestStar = null;
             let minDistance = Infinity;
-            this.stars.forEach(star => {
+            let closestProjected = null;
+            
+            transformedStars.forEach(star => {
                 const projected = this.projectPoint(star);
                 if (projected) {
                     const dx = projected.x - mouseX;
                     const dy = projected.y - mouseY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
+                    
                     if (distance < minDistance) {
                         minDistance = distance;
                         closestStar = star;
+                        closestProjected = projected;
                     }
                 }
             });
-            if (minDistance < 10 && closestStar) {
+
+            const threshold = 10; // Use consistent screen-space threshold
+
+            if (minDistance < threshold && closestStar && closestProjected) {
                 const infoDiv = document.createElement('div');
                 infoDiv.style.position = 'absolute';
-                infoDiv.style.left = (mouseX + 20) + 'px';
-                infoDiv.style.top = (mouseY - 20) + 'px';
+                // Use the projected position for placing the info window
+                infoDiv.style.left = (closestProjected.x + 20) + 'px';
+                infoDiv.style.top = (closestProjected.y - 20) + 'px';
                 infoDiv.style.padding = '5px';
                 infoDiv.style.backgroundColor = '#222';
                 infoDiv.style.color = '#fff';
@@ -346,9 +366,11 @@ class SkyRenderer {
                     contentContainer.innerHTML = '';
                     const starInfo = document.createElement('div');
                     const name = closestStar.name || 'N/A';
+                    const id = closestStar.id || 'N/A';
                     const magnitude = (closestStar.magnitude !== undefined) ? closestStar.magnitude : 'N/A';
                     const spectral = closestStar.spectralType || (closestStar.colorIndex !== undefined ? closestStar.colorIndex : 'N/A');
                     starInfo.innerHTML = '<strong>Name:</strong> ' + name + '<br>' +
+                                          '<strong>ID:</strong> ' + id + '<br>' +
                                           '<strong>Magnitude:</strong> ' + magnitude + '<br>' +
                                           '<strong>Spectral Type / Color Index:</strong> ' + spectral;
                     contentContainer.appendChild(starInfo);
@@ -415,8 +437,12 @@ class SkyRenderer {
                 infoDiv.insertBefore(headerDiv, infoDiv.firstChild);
                 canvas.parentNode.appendChild(infoDiv);
                 
-                // Store the star and its info window
-                this.activeStars.set(starId, { star: closestStar, infoWindow: infoDiv });
+                // Store both the original and transformed star data
+                this.activeStars.set(closestStar.id, {
+                    star: closestStar,
+                    infoWindow: infoDiv,
+                    timeCreated: currentTime
+                });
                 this.render();
             }
         });
@@ -482,6 +508,14 @@ class SkyRenderer {
         this.stars = stars;
         const transformedStars = this.transformStarsForProjection(stars, this.projectionType, currentTime);
         
+        // Update positions of active stars
+        transformedStars.forEach(transformedStar => {
+            if (this.activeStars.has(transformedStar.id)) {
+                const info = this.activeStars.get(transformedStar.id);
+                info.star = transformedStar;  // Update with new transformed position
+            }
+        });
+
         const positions = new Float32Array(transformedStars.length * 3);
         const magnitudes = new Float32Array(transformedStars.length);
         const colors = new Float32Array(transformedStars.length * 3);
@@ -798,6 +832,9 @@ class SkyRenderer {
     }
 
     render(currentTime = new Date()) {
+        // Store the current render time for use in click detection
+        this.currentRenderTime = currentTime;
+        
         this.resize();
 
         // Clear canvases
@@ -806,7 +843,7 @@ class SkyRenderer {
             this.ctx2d.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
         }
 
-        // Update matrices for camera view (without Earth rotation)
+        // Update matrices for camera view
         this.updateMatrices();
 
         // Update star positions based on current time
@@ -840,7 +877,10 @@ class SkyRenderer {
             const canvasRect = this.canvas.getBoundingClientRect();
 
             this.activeStars.forEach((info, starId) => {
-                const starPos = this.projectPoint(info.star);
+                // Get the current transformed position of the star
+                const transformedStar = this.transformStarsForProjection([info.star], this.projectionType, currentTime)[0];
+                const starPos = this.projectPoint(transformedStar);
+                
                 if (starPos) {
                     // Update info window position to follow star if it's near the edge
                     const windowRect = info.infoWindow.getBoundingClientRect();
@@ -876,23 +916,67 @@ class SkyRenderer {
                     const infoRight = infoLeft + infoRect.width;
                     const infoBottom = infoTop + infoRect.height;
 
-                    const corners = [
-                        { x: infoLeft, y: infoTop },
-                        { x: infoRight, y: infoTop },
-                        { x: infoLeft, y: infoBottom },
-                        { x: infoRight, y: infoBottom }
+                    // Calculate the closest point on the info window border to the star
+                    const starX = starPos.x;
+                    const starY = starPos.y;
+
+                    // Find the closest point on each edge of the info window
+                    let closestPoint = { x: 0, y: 0 };
+                    let minDistance = Infinity;
+
+                    // Helper function to find closest point on a line segment
+                    const findClosestPointOnLine = (x1, y1, x2, y2) => {
+                        const A1 = x2 - x1;
+                        const B1 = y2 - y1;
+                        const C1 = (x2 - x1) * x1 + (y2 - y1) * y1;
+                        const C2 = -B1 * starX + A1 * starY;
+                        const det = A1 * A1 + B1 * B1;
+                        let cx = 0;
+                        let cy = 0;
+
+                        if (det !== 0) {
+                            cx = (A1 * C1 - B1 * C2) / det;
+                            cy = (A1 * C2 + B1 * C1) / det;
+                        } else {
+                            cx = x1;
+                            cy = y1;
+                        }
+
+                        // Check if the point lies beyond the segment endpoints
+                        const minX = Math.min(x1, x2);
+                        const maxX = Math.max(x1, x2);
+                        const minY = Math.min(y1, y2);
+                        const maxY = Math.max(y1, y2);
+
+                        cx = Math.max(minX, Math.min(cx, maxX));
+                        cy = Math.max(minY, Math.min(cy, maxY));
+
+                        return { x: cx, y: cy };
+                    };
+
+                    // Check each edge of the info window
+                    const edges = [
+                        { x1: infoLeft, y1: infoTop, x2: infoRight, y2: infoTop },       // Top
+                        { x1: infoRight, y1: infoTop, x2: infoRight, y2: infoBottom },   // Right
+                        { x1: infoRight, y1: infoBottom, x2: infoLeft, y2: infoBottom }, // Bottom
+                        { x1: infoLeft, y1: infoBottom, x2: infoLeft, y2: infoTop }      // Left
                     ];
 
-                    let connectionPoint = corners.reduce((prev, curr) => {
-                        return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) <
-                               Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
-                    }, corners[0]);
+                    edges.forEach(edge => {
+                        const point = findClosestPointOnLine(edge.x1, edge.y1, edge.x2, edge.y2);
+                        const distance = Math.hypot(starX - point.x, starY - point.y);
+                        
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestPoint = point;
+                        }
+                    });
 
-                    // Draw dotted line
+                    // Draw the connection line
                     ctx.beginPath();
                     ctx.setLineDash([5, 5]);
-                    ctx.moveTo(starPos.x, starPos.y);
-                    ctx.lineTo(connectionPoint.x, connectionPoint.y);
+                    ctx.moveTo(starX, starY);
+                    ctx.lineTo(closestPoint.x, closestPoint.y);
                     ctx.strokeStyle = '#666';
                     ctx.lineWidth = 1;
                     ctx.stroke();
@@ -1252,112 +1336,6 @@ class SkyRenderer {
             ctx.font = '16px Arial';
             ctx.textAlign = 'center';
             ctx.fillText(label, pos.x, pos.y);
-        }
-    }
-
-    // Update the render method to call draw3DCardinalDirections
-    render(currentTime = new Date()) {
-        this.resize();
-
-        // Clear canvases
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-        if (this.ctx2d) {
-            this.ctx2d.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
-        }
-
-        // Update matrices for camera view (without Earth rotation)
-        this.updateMatrices();
-
-        // Update star positions based on current time
-        if (this.stars) {
-            this.updateStarData(this.stars, currentTime);
-        }
-
-        // Draw elements based on visibility settings
-        if (this.visibility.showGrid && this.gridLines) {
-            this.drawGrid(this.projectionType);
-        }
-
-        if (this.visibility.showStars && this.stars) {
-            this.drawStars();
-        }
-
-        if ((this.visibility.showNebulae || this.visibility.showGalaxies || this.visibility.showClusters) && this.deepSkyObjects) {
-            this.drawDeepSkyObjects();
-        }
-
-        if (this.visibility.showMeteors && this.meteorShowers) {
-            this.drawMeteorShowers();
-        }
-
-        // Draw 3D cardinal directions
-        this.draw3DCardinalDirections();
-
-        // Draw connection lines for all active stars and update their positions
-        if (this.activeStars.size > 0) {
-            const ctx = this.ctx2d;
-            const canvasRect = this.canvas.getBoundingClientRect();
-
-            this.activeStars.forEach((info, starId) => {
-                const starPos = this.projectPoint(info.star);
-                if (starPos) {
-                    // Update info window position to follow star if it's near the edge
-                    const windowRect = info.infoWindow.getBoundingClientRect();
-                    const canvasWidth = this.canvas.width;
-                    const canvasHeight = this.canvas.height;
-                    
-                    // Check if star is near canvas edge
-                    const edgeMargin = 100;
-                    if (starPos.x < edgeMargin || starPos.x > canvasWidth - edgeMargin ||
-                        starPos.y < edgeMargin || starPos.y > canvasHeight - edgeMargin) {
-                        
-                        // Calculate new window position that keeps it visible
-                        let newLeft = parseFloat(info.infoWindow.style.left);
-                        let newTop = parseFloat(info.infoWindow.style.top);
-                        
-                        if (starPos.x < edgeMargin) newLeft = starPos.x + 20;
-                        if (starPos.x > canvasWidth - edgeMargin) newLeft = starPos.x - windowRect.width - 20;
-                        if (starPos.y < edgeMargin) newTop = starPos.y + 20;
-                        if (starPos.y > canvasHeight - edgeMargin) newTop = starPos.y - windowRect.height - 20;
-                        
-                        // Keep window within canvas bounds
-                        newLeft = Math.max(0, Math.min(newLeft, canvasWidth - windowRect.width));
-                        newTop = Math.max(0, Math.min(newTop, canvasHeight - windowRect.height));
-                        
-                        info.infoWindow.style.left = `${newLeft}px`;
-                        info.infoWindow.style.top = `${newTop}px`;
-                    }
-
-                    // Draw connection line
-                    const infoRect = info.infoWindow.getBoundingClientRect();
-                    const infoLeft = infoRect.left - canvasRect.left;
-                    const infoTop = infoRect.top - canvasRect.top;
-                    const infoRight = infoLeft + infoRect.width;
-                    const infoBottom = infoTop + infoRect.height;
-
-                    const corners = [
-                        { x: infoLeft, y: infoTop },
-                        { x: infoRight, y: infoTop },
-                        { x: infoLeft, y: infoBottom },
-                        { x: infoRight, y: infoBottom }
-                    ];
-
-                    let connectionPoint = corners.reduce((prev, curr) => {
-                        return (Math.hypot(starPos.x - curr.x, starPos.y - curr.y) <
-                               Math.hypot(starPos.x - prev.x, starPos.y - prev.y)) ? curr : prev;
-                    }, corners[0]);
-
-                    // Draw dotted line
-                    ctx.beginPath();
-                    ctx.setLineDash([5, 5]);
-                    ctx.moveTo(starPos.x, starPos.y);
-                    ctx.lineTo(connectionPoint.x, connectionPoint.y);
-                    ctx.strokeStyle = '#666';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-            });
         }
     }
 } 

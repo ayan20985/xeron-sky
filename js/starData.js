@@ -70,11 +70,11 @@ class StarData {
                 return {
                     id: `HR ${star[0]}`,
                     name: star[6]?.trim() || `HR ${star[0]}`,
-                    ra: ra,
-                    dec: dec,
-                    magnitude: magnitude,
-                    colorIndex: colorIndex,
-                    spectralType: spectralType,
+                    ra,
+                    dec,
+                    magnitude,
+                    colorIndex,
+                    spectralType,
                     x: Math.cos(decRad) * Math.cos(raRad),
                     y: Math.cos(decRad) * Math.sin(raRad),
                     z: Math.sin(decRad)
@@ -87,11 +87,9 @@ class StarData {
     }
 
     equatorialToCartesian(ra, dec, distance = 1) {
-        // Convert equatorial coordinates to different projections
-        const raRad = (ra * 15) * Math.PI / 180; // Convert hours to degrees, then to radians
-        const decRad = dec * Math.PI / 180;      // Convert degrees to radians
+        const raRad = (ra * 15) * Math.PI / 180;
+        const decRad = dec * Math.PI / 180;
 
-        // Default spherical projection
         return {
             x: distance * Math.cos(decRad) * Math.cos(raRad),
             y: distance * Math.cos(decRad) * Math.sin(raRad),
@@ -100,7 +98,6 @@ class StarData {
     }
 
     equatorialToStereographic(ra, dec) {
-        // Stereographic projection
         const raRad = (ra * 15) * Math.PI / 180;
         const decRad = dec * Math.PI / 180;
         const R = 2.0 / (1.0 + Math.cos(decRad) * Math.cos(raRad));
@@ -113,7 +110,6 @@ class StarData {
     }
 
     equatorialToMercator(ra, dec) {
-        // Mercator projection
         const raRad = (ra * 15) * Math.PI / 180;
         const decRad = Math.max(Math.min(dec * Math.PI / 180, Math.PI/2 - 0.01), -Math.PI/2 + 0.01);
         
@@ -125,7 +121,6 @@ class StarData {
     }
 
     equatorialToHammer(ra, dec) {
-        // Hammer-Aitoff projection
         const raRad = (ra * 15 - 180) * Math.PI / 180;
         const decRad = dec * Math.PI / 180;
         const z = Math.sqrt(1 + Math.cos(decRad) * Math.cos(raRad/2));
@@ -138,7 +133,6 @@ class StarData {
     }
 
     async loadDeepSkyObjects() {
-        // Query SIMBAD for Messier objects
         const simbadUrl = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync';
         const query = `SELECT basic.OID, ident.id, ra, dec, allfluxes.V, otype.otype_txt, dim.dimensions
                       FROM basic
@@ -165,7 +159,6 @@ class StarData {
     }
 
     async loadPlanetaryData() {
-        // Use NASA Horizons API to get planetary positions
         const horizonsUrl = 'https://ssd.jpl.nasa.gov/api/horizons.api';
         const planets = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
         
@@ -188,7 +181,6 @@ class StarData {
         }));
     }
 
-    // Helper methods
     getStar(name) {
         return this.stars.find(star => star.name === name);
     }
