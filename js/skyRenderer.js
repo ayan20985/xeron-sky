@@ -40,7 +40,7 @@ class SkyRenderer {
             showConstellations: true,
             showMeteors: true,
             showStars: true,
-            showStarNames: true, // Add this line
+            showStarNames: true,
             showNebulae: true,
             showGalaxies: true,
             showClusters: true
@@ -418,22 +418,23 @@ class SkyRenderer {
                     contentContainer.innerHTML = '';
                     const starInfo = document.createElement('div');
                     
-                    // Show common name in large text if available
-                    if (closestStar.commonName) {
-                        const nameHeader = document.createElement('div');
-                        nameHeader.style.fontSize = '18px';
-                        nameHeader.style.fontWeight = 'bold';
-                        nameHeader.style.marginBottom = '10px';
-                        nameHeader.textContent = closestStar.commonName;
-                        starInfo.appendChild(nameHeader);
-                    }
+                    // Show header with common name, name, or ID in order of preference
+                    const nameHeader = document.createElement('div');
+                    nameHeader.style.fontSize = '18px';
+                    nameHeader.style.fontWeight = 'bold';
+                    nameHeader.style.marginBottom = '10px';
+                    nameHeader.textContent = closestStar.commonName || closestStar.name || closestStar.id;
+                    starInfo.appendChild(nameHeader);
 
                     const id = closestStar.id || 'N/A';
                     const magnitude = (closestStar.magnitude !== undefined) ? closestStar.magnitude.toFixed(2) : 'N/A';
                     const spectral = closestStar.spectralType || (closestStar.colorIndex !== undefined ? closestStar.colorIndex : 'N/A');
                     
-                    starInfo.innerHTML += `<strong>Catalog ID:</strong> ${id}<br>` +
-                                        `<strong>Magnitude:</strong> ${magnitude}<br>` +
+                    // Only show ID in details if it's not already shown in header
+                    if (nameHeader.textContent !== id) {
+                        starInfo.innerHTML += `<strong>Catalog ID:</strong> ${id}<br>`;
+                    }
+                    starInfo.innerHTML += `<strong>Magnitude:</strong> ${magnitude}<br>` +
                                         `<strong>Spectral Type / Color Index:</strong> ${spectral}`;
                     contentContainer.appendChild(starInfo);
                 }
@@ -1908,13 +1909,9 @@ class SkyRenderer {
         transformedStars.forEach(star => {
             if (star.magnitude < 3) { // Only show names for bright stars
                 const pos = this.projectPoint(star);
-                if (pos) {
+                if (pos && star.commonName) { // Only proceed if star has a common name
                     // Calculate star size based on magnitude
                     const size = Math.max(3, Math.min(10, Math.pow(2.0, (6.0 - star.magnitude)) * 2.0));
-                    
-                    // Get the star's common name
-                    const name = star.commonName || '';
-                    if (!name) return; // Skip if no common name
                     
                     // Calculate label position
                     const labelDistance = size + 5;
@@ -1926,16 +1923,16 @@ class SkyRenderer {
                     
                     // Clamp label position to canvas bounds
                     const padding = 10;
-                    const textWidth = ctx.measureText(name).width;
+                    const textWidth = ctx.measureText(star.commonName).width;
                     labelX = Math.max(padding, Math.min(this.canvas.width - textWidth - padding, labelX));
                     labelY = Math.max(padding, Math.min(this.canvas.height - padding, labelY));
                     
                     // Draw name with outline for better visibility
                     ctx.strokeStyle = 'black';
                     ctx.lineWidth = 3;
-                    ctx.strokeText(name, labelX, labelY);
+                    ctx.strokeText(star.commonName, labelX, labelY);
                     ctx.fillStyle = 'white';
-                    ctx.fillText(name, labelX, labelY);
+                    ctx.fillText(star.commonName, labelX, labelY);
                     
                     // Draw a line connecting the star to its label if they're far apart
                     const distanceToLabel = Math.hypot(labelX - pos.x, labelY - pos.y);
