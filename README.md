@@ -2,7 +2,7 @@
 find me at the end of time.
 
 # building
-- run `python -m http.server` (trust me it works, no idea why lmao)
+- run `python -m http.server 8000` (trust me it works, no idea why lmao)
 - check at `http://localhost:8000/` in browser
 
 # rendering types
@@ -13,6 +13,8 @@ find me at the end of time.
 
 # known bugs
 - lines wrap around the edge of the in hammer-aitoff projection
+- hammer-aitoff projection has weird polar rotation if you scroll too far east by way of shift-pan
+- control panel is a bit buggy with the animations
 
 # screenshots
 ![image](https://github.com/user-attachments/assets/8619cc07-5ff1-4964-8f5a-82bdd157dae6)

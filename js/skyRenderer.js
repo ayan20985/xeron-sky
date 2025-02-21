@@ -23,6 +23,10 @@ class SkyRenderer {
         // Add visibility settings first
         this.visibility = {
             showGrid: true,
+            showEquatorial: true,
+            showGalactic: true,
+            showAzimuthal: true,
+            showEcliptic: true,
             showLabels: true,
             showConstellations: true,
             showMeteors: true,
@@ -32,9 +36,6 @@ class SkyRenderer {
             showClusters: true
         };
 
-        // Create projection selector menu
-        this.createProjectionMenu();
-
         // Initialize WebGL context and resources
         this.initializeGL(this.gl);
         this.initShaders(this.gl);
@@ -42,7 +43,7 @@ class SkyRenderer {
 
         // Add rotation for Hammer projection
         this.hammerRotation = 0;
-        
+
         // Add pan parameters
         this.pan = { x: 0, y: 0 };
         this.scale = 1.0;
@@ -64,51 +65,6 @@ class SkyRenderer {
 
         // Add version info
         this.version = "v1.0.0";
-    }
-
-    createProjectionMenu() {
-        // Create menu container
-        const menu = document.createElement('div');
-        menu.style.position = 'absolute';
-        menu.style.top = '10px';
-        menu.style.right = '10px';
-        menu.style.backgroundColor = 'transparent';
-        menu.style.padding = '10px';
-        menu.style.borderRadius = '5px';
-        menu.style.zIndex = '1000';
-
-        // Create select element
-        const select = document.createElement('select');
-        select.style.backgroundColor = '#222';
-        select.style.color = '#fff';
-        select.style.border = '1px solid #444';
-        select.style.padding = '5px';
-        select.style.borderRadius = '3px';
-        select.style.cursor = 'pointer';
-
-        // Add projection options
-        const projections = [
-            { value: 'spherical', label: 'Spherical (3D)' },
-            { value: 'stereographic', label: 'Stereographic' },
-            { value: 'mercator', label: 'Mercator' },
-            { value: 'hammer', label: 'Hammer-Aitoff' }
-        ];
-
-        projections.forEach(proj => {
-            const option = document.createElement('option');
-            option.value = proj.value;
-            option.textContent = proj.label;
-            select.appendChild(option);
-        });
-
-        // Add change event listener
-        select.addEventListener('change', (e) => {
-            this.setProjection(e.target.value);
-            this.render();
-        });
-
-        menu.appendChild(select);
-        this.canvas.parentNode.appendChild(menu);
     }
 
     initializeGL(gl) {
@@ -291,7 +247,7 @@ class SkyRenderer {
                     tooltip.style.borderRadius = '3px';
                     tooltip.style.fontSize = '12px';
                     tooltip.style.pointerEvents = 'none';
-                    tooltip.style.zIndex = '1000';
+                    tooltip.style.zIndex = '1001'; // Increase z-index to show above control panel
                     tooltip.textContent = hoveredPoint.name;
                     
                     if (!document.getElementById('sky-tooltip')) {
@@ -931,7 +887,7 @@ class SkyRenderer {
         ctx.textAlign = 'left';
         
         // Draw engine name and version
-        ctx.fillText(`Xeron Sky Engine v0.11`, padding, this.canvas.height - padding - (lineHeight * 2));
+        ctx.fillText(`Xeron Sky Engine v0.12`, padding, this.canvas.height - padding - (lineHeight * 2));
         
         // Draw disclaimer and website link
         ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, this.canvas.height - padding - lineHeight);
@@ -1179,6 +1135,12 @@ class SkyRenderer {
         
         // Transform grid lines based on projection type
         this.gridLines.forEach(line => {
+            // Check visibility for each grid type
+            if (line.type === 'equatorial' && !this.visibility.showEquatorial) return;
+            if (line.type === 'galactic' && !this.visibility.showGalactic) return;
+            if (line.type === 'azimuthal' && !this.visibility.showAzimuthal) return;
+            if (line.type === 'ecliptic' && !this.visibility.showEcliptic) return;
+
             ctx.beginPath();
             ctx.strokeStyle = line.color;
             ctx.lineWidth = 1;
@@ -1824,6 +1786,91 @@ class SkyRenderer {
             ctx.textAlign = 'center';
             ctx.fillText(label, pos.x, pos.y);
         }
+    }
+
+    createDisplayOptions() {
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '12px';
+
+        // Create sections for controls
+        const sections = [
+            {
+                title: 'Grid Systems',
+                controls: [
+                    { id: 'showEquatorial', symbol: '⊕', tooltip: 'Equatorial Grid' },
+                    { id: 'showGalactic', symbol: '⊗', tooltip: 'Galactic Grid' },
+                    { id: 'showAzimuthal', symbol: '⊙', tooltip: 'Azimuthal Grid' },
+                    { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' }
+                ]
+            },
+            {
+                title: 'Celestial Objects',
+                controls: [
+                    { id: 'showStars', symbol: '★', tooltip: 'Stars' },
+                    { id: 'showConstellations', symbol: '⋆', tooltip: 'Constellations' },
+                    { id: 'showMeteors', symbol: '☄', tooltip: 'Meteor Showers' }
+                ]
+            },
+            {
+                title: 'Deep Sky Objects',
+                controls: [
+                    { id: 'showNebulae', symbol: '◊', tooltip: 'Nebulae' },
+                    { id: 'showGalaxies', symbol: '∞', tooltip: 'Galaxies' },
+                    { id: 'showClusters', symbol: '⋇', tooltip: 'Star Clusters' }
+                ]
+            },
+            {
+                title: 'Labels & Info',
+                controls: [
+                    { id: 'showLabels', symbol: '⚏', tooltip: 'Object Labels' }
+                ]
+            }
+        ];
+
+        // Create a row for each section
+        sections.forEach(section => {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.style.display = 'flex';
+            sectionDiv.style.flexDirection = 'row';
+            sectionDiv.style.gap = '8px';
+            sectionDiv.style.justifyContent = 'center';
+            sectionDiv.style.alignItems = 'center';
+            sectionDiv.style.padding = '4px';
+            sectionDiv.style.borderBottom = '1px solid #444';
+
+            section.controls.forEach(control => {
+                const button = document.createElement('button');
+                button.className = 'xeron-button';
+                button.style.width = '40px';
+                button.style.height = '40px';
+                button.style.fontSize = '20px';
+                button.style.padding = '8px';
+                button.style.backgroundColor = this.visibility[control.id] ? '#444' : '#222';
+                button.style.color = '#fff';
+                button.style.border = '1px solid #444';
+                button.style.borderRadius = '3px';
+                button.style.cursor = 'pointer';
+                button.style.display = 'flex';
+                button.style.alignItems = 'center';
+                button.style.justifyContent = 'center';
+                button.innerHTML = control.symbol;
+                button.title = control.tooltip;
+
+                button.addEventListener('click', () => {
+                    this.visibility[control.id] = !this.visibility[control.id];
+                    button.style.backgroundColor = this.visibility[control.id] ? '#444' : '#222';
+                    this.render();
+                });
+
+                sectionDiv.appendChild(button);
+            });
+
+            container.appendChild(sectionDiv);
+        });
+
+        return container;
     }
 } 
 
