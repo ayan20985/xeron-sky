@@ -240,6 +240,7 @@ class NightSky {
             { type: 'separator' },
             // Celestial Objects
             { id: 'showStars', symbol: '★', tooltip: 'Stars' },
+            { id: 'showStarNames', symbol: 'Aa', tooltip: 'Star Names' },
             { id: 'showConstellations', symbol: '⋆', tooltip: 'Constellations' },
             { id: 'showMeteors', symbol: '☄', tooltip: 'Meteor Showers' },
             { type: 'separator' },

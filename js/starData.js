@@ -9,6 +9,14 @@ class StarData {
         };
         this.meteorShowers = [];
         this.activeShowers = [];
+        
+        // Import common star names from separate file
+        import('./commonstardata.js').then(module => {
+            this.commonNames = module.commonStarNames;
+        }).catch(error => {
+            console.warn('Could not load common star names:', error);
+            this.commonNames = {};
+        });
     }
 
     async loadAllData() {
@@ -16,6 +24,18 @@ class StarData {
             const yaleData = await this.loadYaleCatalog();
             if (yaleData?.length > 0) {
                 console.log(`Loaded ${yaleData.length} stars from Yale catalog`);
+                // Fetch common names for bright stars (magnitude < 3)
+                const brightStars = yaleData.filter(star => star.magnitude < 3);
+                for (const star of brightStars) {
+                    try {
+                        const commonName = await this.fetchCommonName(star.id);
+                        if (commonName) {
+                            star.commonName = commonName;
+                        }
+                    } catch (error) {
+                        console.warn(`Could not fetch common name for ${star.id}:`, error);
+                    }
+                }
                 this.stars = yaleData;
             } else {
                 throw new Error('No stars loaded from Yale catalog');
@@ -195,5 +215,10 @@ class StarData {
 
     getDSOsByType(type) {
         return this.deepSkyObjects[type] || [];
+    }
+
+    async fetchCommonName(hrId) {
+        const id = hrId.replace('HR ', '');
+        return this.commonNames[id] || null;
     }
 }

@@ -1,7 +1,13 @@
 class SkyRenderer {
     constructor(canvas) {
         // Add version info
-        this.version = "v0.13";
+        this.version = "v0.14";
+
+        // Add observer location (default to London)
+        this.location = {
+            latitude: 51.5074,
+            longitude: -0.1278
+        };
 
         this.canvas = canvas;
         this.gl = canvas.getContext('webgl', { alpha: false }) || canvas.getContext('experimental-webgl', { alpha: false });
@@ -34,6 +40,7 @@ class SkyRenderer {
             showConstellations: true,
             showMeteors: true,
             showStars: true,
+            showStarNames: true, // Add this line
             showNebulae: true,
             showGalaxies: true,
             showClusters: true
@@ -410,14 +417,24 @@ class SkyRenderer {
                     rawTab.style.backgroundColor = '#444';
                     contentContainer.innerHTML = '';
                     const starInfo = document.createElement('div');
-                    const name = closestStar.name || 'N/A';
+                    
+                    // Show common name in large text if available
+                    if (closestStar.commonName) {
+                        const nameHeader = document.createElement('div');
+                        nameHeader.style.fontSize = '18px';
+                        nameHeader.style.fontWeight = 'bold';
+                        nameHeader.style.marginBottom = '10px';
+                        nameHeader.textContent = closestStar.commonName;
+                        starInfo.appendChild(nameHeader);
+                    }
+
                     const id = closestStar.id || 'N/A';
-                    const magnitude = (closestStar.magnitude !== undefined) ? closestStar.magnitude : 'N/A';
+                    const magnitude = (closestStar.magnitude !== undefined) ? closestStar.magnitude.toFixed(2) : 'N/A';
                     const spectral = closestStar.spectralType || (closestStar.colorIndex !== undefined ? closestStar.colorIndex : 'N/A');
-                    starInfo.innerHTML = '<strong>Name:</strong> ' + name + '<br>' +
-                                          '<strong>ID:</strong> ' + id + '<br>' +
-                                          '<strong>Magnitude:</strong> ' + magnitude + '<br>' +
-                                          '<strong>Spectral Type / Color Index:</strong> ' + spectral;
+                    
+                    starInfo.innerHTML += `<strong>Catalog ID:</strong> ${id}<br>` +
+                                        `<strong>Magnitude:</strong> ${magnitude}<br>` +
+                                        `<strong>Spectral Type / Color Index:</strong> ${spectral}`;
                     contentContainer.appendChild(starInfo);
                 }
                 function showRaw() {
@@ -937,6 +954,10 @@ class SkyRenderer {
 
         if (this.visibility.showStars && this.stars) {
             this.drawStars();
+        }
+
+        if (this.visibility.showStarNames && this.stars) {
+            this.drawStarNames();
         }
 
         if ((this.visibility.showNebulae || this.visibility.showGalaxies || this.visibility.showClusters) && this.deepSkyObjects) {
@@ -1870,6 +1891,65 @@ class SkyRenderer {
         });
 
         return container;
+    }
+
+    // Add this method to render star names
+    drawStarNames() {
+        if (!this.stars || !this.visibility.showStarNames) return;
+        
+        const ctx = this.ctx2d;
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        // Transform stars based on current projection and time
+        const transformedStars = this.transformStarsForProjection(this.stars, this.projectionType, this.currentRenderTime);
+        
+        transformedStars.forEach(star => {
+            if (star.magnitude < 3) { // Only show names for bright stars
+                const pos = this.projectPoint(star);
+                if (pos) {
+                    // Calculate star size based on magnitude
+                    const size = Math.max(3, Math.min(10, Math.pow(2.0, (6.0 - star.magnitude)) * 2.0));
+                    
+                    // Get the star's common name
+                    const name = star.commonName || '';
+                    if (!name) return; // Skip if no common name
+                    
+                    // Calculate label position
+                    const labelDistance = size + 5;
+                    const labelAngle = Math.PI / 4; // 45 degrees
+                    
+                    // Calculate offset position for label
+                    let labelX = pos.x + labelDistance * Math.cos(labelAngle);
+                    let labelY = pos.y - labelDistance * Math.sin(labelAngle);
+                    
+                    // Clamp label position to canvas bounds
+                    const padding = 10;
+                    const textWidth = ctx.measureText(name).width;
+                    labelX = Math.max(padding, Math.min(this.canvas.width - textWidth - padding, labelX));
+                    labelY = Math.max(padding, Math.min(this.canvas.height - padding, labelY));
+                    
+                    // Draw name with outline for better visibility
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(name, labelX, labelY);
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(name, labelX, labelY);
+                    
+                    // Draw a line connecting the star to its label if they're far apart
+                    const distanceToLabel = Math.hypot(labelX - pos.x, labelY - pos.y);
+                    if (distanceToLabel > labelDistance * 1.5) {
+                        ctx.beginPath();
+                        ctx.moveTo(pos.x, pos.y);
+                        ctx.lineTo(labelX, labelY);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+        });
     }
 } 
 
