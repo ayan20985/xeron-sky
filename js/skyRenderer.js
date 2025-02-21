@@ -1,5 +1,8 @@
 class SkyRenderer {
     constructor(canvas) {
+        // Add version info
+        this.version = "v0.13";
+
         this.canvas = canvas;
         this.gl = canvas.getContext('webgl', { alpha: false }) || canvas.getContext('experimental-webgl', { alpha: false });
         if (!this.gl) {
@@ -62,9 +65,6 @@ class SkyRenderer {
 
         // Initial resize
         this.resize();
-
-        // Add version info
-        this.version = "v1.0.0";
     }
 
     initializeGL(gl) {
@@ -701,13 +701,13 @@ class SkyRenderer {
             gradient.addColorStop(0, `rgba(${color[0]*255}, ${color[1]*255}, ${color[2]*255}, 0.8)`);
             gradient.addColorStop(0.3, `rgba(${color[0]*255}, ${color[1]*255}, ${color[2]*255}, 0.6)`);
             gradient.addColorStop(0.7, `rgba(${color[0]*255}, ${color[1]*255}, ${color[2]*255}, 0.3)`);
-                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
             // Draw main nebula shape
-                ctx.beginPath();
+            ctx.beginPath();
             ctx.arc(x, y, s, 0, Math.PI * 2);
-                ctx.fillStyle = gradient;
-                ctx.fill();
+            ctx.fillStyle = gradient;
+            ctx.fill();
 
             // Add internal structure
             for (let i = 0; i < 5; i++) {
@@ -887,7 +887,7 @@ class SkyRenderer {
         ctx.textAlign = 'left';
         
         // Draw engine name and version
-        ctx.fillText(`Xeron Sky Engine v0.12`, padding, this.canvas.height - padding - (lineHeight * 2));
+        ctx.fillText(`Xeron Sky Engine ${this.version}`, padding, this.canvas.height - padding - (lineHeight * 2));
         
         // Draw disclaimer and website link
         ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, this.canvas.height - padding - lineHeight);
@@ -1554,7 +1554,7 @@ class SkyRenderer {
         
         this.gridLines.push({
             points: eclipticPoints,
-            color: 'rgba(255, 255, 0, 0.5)', // Bright yellow with 50% opacity
+            color: 'rgba(255, 255, 0, 0.5)',
             type: 'ecliptic'
         });
 
@@ -1712,19 +1712,19 @@ class SkyRenderer {
         // More pronounced color differences
         switch (type) {
             case 'O':  // Hot blue stars (30,000-60,000K)
-                return [0.4, 0.4, 1.0]; // More blue
+                return [0.4, 0.4, 1.0]; 
             case 'B':  // Blue to blue-white (10,000-30,000K)
-                return [0.5, 0.7, 1.0]; // More blue
+                return [0.5, 0.7, 1.0]; 
             case 'A':  // White (7,500-10,000K)
-                return [1.0, 1.0, 1.0]; // No change
+                return [1.0, 1.0, 1.0];
             case 'F':  // Yellow-white (6,000-7,500K)
-                return [1.0, 0.9, 0.7]; // More yellow
+                return [1.0, 0.9, 0.7];
             case 'G':  // Yellow (5,000-6,000K)
-                return [1.0, 0.8, 0.4]; // More yellow
+                return [1.0, 0.8, 0.4];
             case 'K':  // Orange (3,500-5,000K)
-                return [1.0, 0.6, 0.2]; // More orange
+                return [1.0, 0.6, 0.2];
             case 'M':  // Red (2,000-3,500K)
-                return [1.0, 0.2, 0.2]; // More red
+                return [1.0, 0.2, 0.2];
             default:
                 return [1.0, 1.0, 1.0];  // Default to white
         }
@@ -1738,12 +1738,11 @@ class SkyRenderer {
         
         if (colorIndex < 0) {
             // Bluer stars - more pronounced blue
-            g = Math.max(0.2, 1.0 + colorIndex * 1.2);  // Reduce green more
-            r = Math.max(0.1, g * 0.5);                 // Reduce red even more
-        } else {
+            g = Math.max(0.2, 1.0 + colorIndex * 1.2);
+            r = Math.max(0.1, g * 0.5);
             // Redder stars - more pronounced red
-            b = Math.max(0.0, 1.0 - colorIndex);        // Remove blue completely
-            g = Math.max(0.0, 1.0 - colorIndex * 0.8);  // Reduce green significantly
+            b = Math.max(0.0, 1.0 - colorIndex);      
+            g = Math.max(0.0, 1.0 - colorIndex * 0.8);
         }
         
         return [
@@ -1757,14 +1756,14 @@ class SkyRenderer {
     draw3DCardinalDirections() {
         const ctx = this.gl; // Assuming you're using WebGL context for 3D rendering
         const positions = [
-            { label: 'N', x: 0, y: 1, z: 0 }, // North
-            { label: 'NE', x: 0.707, y: 0.707, z: 0 }, // North-East
-            { label: 'E', x: 1, y: 0, z: 0 }, // East
-            { label: 'SE', x: 0.707, y: -0.707, z: 0 }, // South-East
-            { label: 'S', x: 0, y: -1, z: 0 }, // South
-            { label: 'SW', x: -0.707, y: -0.707, z: 0 }, // South-West
-            { label: 'W', x: -1, y: 0, z: 0 }, // West
-            { label: 'NW', x: -0.707, y: 0.707, z: 0 } // North-West
+            { label: 'N', x: 0, y: 1, z: 0 },
+            { label: 'NE', x: 0.707, y: 0.707, z: 0 },
+            { label: 'E', x: 1, y: 0, z: 0 },
+            { label: 'SE', x: 0.707, y: -0.707, z: 0 },
+            { label: 'S', x: 0, y: -1, z: 0 },
+            { label: 'SW', x: -0.707, y: -0.707, z: 0 },
+            { label: 'W', x: -1, y: 0, z: 0 },
+            { label: 'NW', x: -0.707, y: 0.707, z: 0 } 
         ];
 
         positions.forEach(pos => {

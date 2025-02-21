@@ -233,6 +233,11 @@ class NightSky {
             { id: 'showAzimuthal', symbol: '⊙', tooltip: 'Azimuthal Grid' },
             { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' },
             { type: 'separator' },
+            // Solar System
+            { id: 'showSun', symbol: '☉', tooltip: 'Sun' },
+            { id: 'showPlanets', symbol: '♄', tooltip: 'Planets' },
+            { id: 'showPlanetOrbits', symbol: '⊛', tooltip: 'Planet Orbits' },
+            { type: 'separator' },
             // Celestial Objects
             { id: 'showStars', symbol: '★', tooltip: 'Stars' },
             { id: 'showConstellations', symbol: '⋆', tooltip: 'Constellations' },
