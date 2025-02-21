@@ -1,12 +1,12 @@
 class SkyRenderer {
     constructor(canvas) {
         // Add version info
-        this.version = "v0.15";
+        this.version = "v0.16";
 
-        // Add observer location (default to London)
+        // Add observer location (default to Toronto)
         this.location = {
-            latitude: 51.5074,
-            longitude: -0.1278
+            latitude: 43.6532,
+            longitude: -79.3832
         };
 
         this.canvas = canvas;
@@ -73,6 +73,9 @@ class SkyRenderer {
         // Add search UI
         this.createSearchUI();
 
+        // Add location UI
+        this.createLocationUI();
+
         // Initial resize
         this.resize();
     }
@@ -126,7 +129,7 @@ class SkyRenderer {
                 gl_Position = pos;
                 float size = pow(2.0, (6.0 - aMagnitude)) * 2.0;
                 float pointSize = size / pos.w;
-                pointSize = clamp(pointSize, 3.0, 10.0);
+                pointSize = clamp(pointSize, 4.5, 10.0);
                 gl_PointSize = pointSize;
                 vMagnitude = aMagnitude;
                 vColor = aColor;
@@ -908,14 +911,14 @@ class SkyRenderer {
         ctx.textAlign = 'left';
         
         // Draw engine name and version
-        ctx.fillText(`Xeron Sky Engine ${this.version}`, padding, this.canvas.height - padding - (lineHeight * 2));
+        ctx.fillText(`Xeron Sky Engine ${this.version}`, padding, padding + lineHeight);
         
-        // Draw disclaimer and website link
-        ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, this.canvas.height - padding - lineHeight);
+        // Draw disclaimer
+        ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, padding + (lineHeight * 2));
         
         // Draw website link with underline
         const websiteText = 'www.ayanali.net';
-        const websiteY = this.canvas.height - padding;
+        const websiteY = padding + (lineHeight * 3);
         ctx.fillStyle = 'rgba(100, 149, 237, 0.9)';  // Cornflower blue color
         ctx.fillText(websiteText, padding, websiteY);
         
@@ -930,6 +933,7 @@ class SkyRenderer {
         
         ctx.restore();
     }
+    
 
     render(currentTime = new Date()) {
         // Store the current render time for use in click detection
@@ -1327,7 +1331,7 @@ class SkyRenderer {
                     if (pos) {
                         // Draw star symbol
                         ctx.beginPath();
-                        const starSize = 4;
+                        const starSize = 4;  // Reduced from previous size for more precise hovering
                         for (let i = 0; i < 5; i++) {
                             const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
                             const x = pos.x + Math.cos(angle) * starSize;
@@ -1342,12 +1346,12 @@ class SkyRenderer {
                         ctx.fillStyle = point.color;
                         ctx.fill();
                         
-                        // Add hover area for the point
+                        // Add smaller, more precise hover area for the point
                         const hoverArea = {
-                            x: pos.x - starSize * 2,
-                            y: pos.y - starSize * 2,
-                            width: starSize * 4,
-                            height: starSize * 4,
+                            x: pos.x - starSize,  // Exactly match the star size
+                            y: pos.y - starSize,  // Exactly match the star size
+                            width: starSize * 2,   // Diameter of the star
+                            height: starSize * 2,  // Diameter of the star
                             point: point
                         };
                         
@@ -2177,6 +2181,165 @@ class SkyRenderer {
 
         // Start animation
         requestAnimationFrame(animate);
+    }
+
+    createLocationUI() {
+        const locationContainer = document.createElement('div');
+        locationContainer.className = 'control-panel';
+        locationContainer.style.position = 'fixed';
+        locationContainer.style.display = 'none';
+        locationContainer.style.flexDirection = 'column';
+        locationContainer.style.gap = '10px';
+        locationContainer.style.backgroundColor = '#222';
+        locationContainer.style.padding = '15px';
+        locationContainer.style.borderRadius = '5px';
+        locationContainer.style.minWidth = '200px';
+        locationContainer.style.zIndex = '1000';
+        locationContainer.style.cursor = 'move';
+
+        // Header with close button
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';  // Changed from flex-end to space-between
+        header.style.alignItems = 'center';
+        header.style.marginBottom = '10px';
+        header.style.width = '100%';  // Added to ensure full width
+
+        // Add a title to the left
+        const title = document.createElement('span');
+        title.textContent = 'Location Settings';
+        title.style.color = '#fff';
+        title.style.fontSize = '14px';
+        header.appendChild(title);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '×';
+        closeBtn.style.background = 'none';
+        closeBtn.style.border = 'none';
+        closeBtn.style.color = '#fff';
+        closeBtn.style.fontSize = '20px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.padding = '0';
+        closeBtn.style.width = '20px';
+        closeBtn.style.height = '20px';
+        closeBtn.style.display = 'flex';
+        closeBtn.style.alignItems = 'center';
+        closeBtn.style.justifyContent = 'center';
+        closeBtn.onclick = () => locationContainer.style.display = 'none';
+
+        header.appendChild(closeBtn);
+        locationContainer.appendChild(header);
+
+        // City selector
+        const citySelect = document.createElement('select');
+        citySelect.style.width = '100%';
+        citySelect.style.padding = '5px';
+        citySelect.style.backgroundColor = '#333';
+        citySelect.style.color = '#fff';
+        citySelect.style.border = '1px solid #444';
+        citySelect.style.borderRadius = '3px';
+        citySelect.style.marginBottom = '10px';
+
+        // Add cities
+        import('./citydata.js').then(module => {
+            module.cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = JSON.stringify({lat: city.latitude, lon: city.longitude});
+                option.textContent = city.name;
+                if (city.name === 'Toronto') option.selected = true;
+                citySelect.appendChild(option);
+            });
+        });
+
+        // Coordinate inputs
+        const createInput = (label, value, min, max) => {
+            const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+            container.style.gap = '10px';
+
+            const labelElement = document.createElement('label');
+            labelElement.textContent = label;
+            labelElement.style.color = '#fff';
+            labelElement.style.minWidth = '70px';
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = value;
+            input.step = 'any';
+            input.min = min;
+            input.max = max;
+            input.style.flex = '1';
+            input.style.padding = '5px';
+            input.style.backgroundColor = '#333';
+            input.style.color = '#fff';
+            input.style.border = '1px solid #444';
+            input.style.borderRadius = '3px';
+
+            container.appendChild(labelElement);
+            container.appendChild(input);
+            return { container, input };
+        };
+
+        const latInput = createInput('Latitude', this.location.latitude, -90, 90);
+        const lonInput = createInput('Longitude', this.location.longitude, -180, 180);
+
+        // Add event listeners
+        citySelect.addEventListener('change', (e) => {
+            const coords = JSON.parse(e.target.value);
+            this.location.latitude = coords.lat;
+            this.location.longitude = coords.lon;
+            latInput.input.value = coords.lat;
+            lonInput.input.value = coords.lon;
+            this.render();
+        });
+
+        const updateCoords = () => {
+            const lat = parseFloat(latInput.input.value);
+            const lon = parseFloat(lonInput.input.value);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                this.location.latitude = Math.max(-90, Math.min(90, lat));
+                this.location.longitude = Math.max(-180, Math.min(180, lon));
+                this.render();
+            }
+        };
+
+        latInput.input.addEventListener('change', updateCoords);
+        lonInput.input.addEventListener('change', updateCoords);
+
+        // Add elements to container
+        locationContainer.appendChild(citySelect);
+        locationContainer.appendChild(latInput.container);
+        locationContainer.appendChild(lonInput.container);
+
+        // Make draggable
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            initialX = e.clientX - locationContainer.offsetLeft;
+            initialY = e.clientY - locationContainer.offsetTop;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+                locationContainer.style.left = `${currentX}px`;
+                locationContainer.style.top = `${currentY}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        return locationContainer;
     }
 } 
 

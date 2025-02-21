@@ -34,6 +34,8 @@ class NightSky {
         controls.style.transition = 'transform 0.3s ease, border-radius 0.3s ease';
         controls.style.cursor = 'move';
         controls.style.userSelect = 'none';
+        controls.style.width = 'auto';
+        controls.style.whiteSpace = 'nowrap';
 
         // Main controls container
         const mainControls = document.createElement('div');
@@ -151,6 +153,18 @@ class NightSky {
         const timeDisplay = document.createElement('span');
         timeDisplay.className = 'display-text large';
 
+        const locationDisplay = document.createElement('span');
+        locationDisplay.className = 'display-text';
+        locationDisplay.style.marginLeft = '10px';
+
+        const updateLocationDisplay = () => {
+            const lat = this.renderer.location.latitude;
+            const lon = this.renderer.location.longitude;
+            const latDir = lat >= 0 ? 'N' : 'S';
+            const lonDir = lon >= 0 ? 'E' : 'W';
+            locationDisplay.textContent = `${Math.abs(lat).toFixed(4)}°${latDir}, ${Math.abs(lon).toFixed(4)}°${lonDir}`;
+        };
+
         const resetBtn = document.createElement('button');
         resetBtn.className = 'xeron-button';
         resetBtn.innerHTML = '⟲';
@@ -179,6 +193,71 @@ class NightSky {
         dropdownBtn.innerHTML = '▼';
         applyCommonStyles(dropdownBtn);
         addHoverBehavior(dropdownBtn, 'Toggle Selection Buttons');
+
+        const locationToggleBtn = document.createElement('button');
+        locationToggleBtn.className = 'xeron-button';
+        locationToggleBtn.innerHTML = '↯';
+        applyCommonStyles(locationToggleBtn);
+        addHoverBehavior(locationToggleBtn, 'Toggle Location Input');
+
+        const locationContainer = this.renderer.createLocationUI();
+        locationContainer.style.display = 'none';
+        locationContainer.style.position = 'fixed';
+        locationContainer.style.zIndex = '1001';  // Ensure it's above other elements
+
+        // Add the location container to document body instead of the control panel
+        document.body.appendChild(locationContainer);
+
+        // Make location container draggable
+        let isDraggingLocation = false;
+        let locationStartX, locationStartY;
+        let locationInitialLeft, locationInitialTop;
+
+        // Add mousedown event to the location container's header
+        locationContainer.querySelector('div').addEventListener('mousedown', (e) => {
+            isDraggingLocation = true;
+            locationStartX = e.clientX;
+            locationStartY = e.clientY;
+            const rect = locationContainer.getBoundingClientRect();
+            locationInitialLeft = rect.left;
+            locationInitialTop = rect.top;
+            locationContainer.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDraggingLocation) {
+                const deltaX = e.clientX - locationStartX;
+                const deltaY = e.clientY - locationStartY;
+                locationContainer.style.left = `${locationInitialLeft + deltaX}px`;
+                locationContainer.style.top = `${locationInitialTop + deltaY}px`;
+                locationContainer.style.transform = 'none';
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDraggingLocation) {
+                isDraggingLocation = false;
+                locationContainer.style.cursor = '';
+            }
+        });
+
+        locationToggleBtn.onclick = () => {
+            const isVisible = locationContainer.style.display !== 'none';
+            if (isVisible) {
+                locationContainer.style.display = 'none';
+            } else {
+                locationContainer.style.display = 'flex';
+                
+                // Position it initially if it hasn't been dragged
+                if (!locationContainer.style.left || locationContainer.style.left === '') {
+                    locationContainer.style.left = '50%';
+                    locationContainer.style.top = '100px';
+                    locationContainer.style.transform = 'translateX(-50%)';
+                }
+            }
+        };
 
         // Create unified button row container
         const buttonRow = document.createElement('div');
@@ -328,7 +407,9 @@ class NightSky {
         mainControls.appendChild(ffwdBtn);
         mainControls.appendChild(speedDisplay);
         mainControls.appendChild(timeDisplay);
+        mainControls.appendChild(locationDisplay);
         mainControls.appendChild(resetBtn);
+        mainControls.appendChild(locationToggleBtn);
         mainControls.appendChild(homeBtn);
         mainControls.appendChild(dropdownBtn);
 
@@ -393,6 +474,7 @@ class NightSky {
                 ? 'Paused' 
                 : `${Math.abs(this.timeSpeed)}x${this.timeSpeed < 0 ? ' (Rev)' : ''}`;
             timeDisplay.textContent = this.currentTime.toUTCString();
+            updateLocationDisplay();
         }, 100);
 
         this.canvas.parentNode.appendChild(controls);
