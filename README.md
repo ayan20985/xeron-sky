@@ -11,6 +11,16 @@ find me at the end of time.
 - mercator
 - hammer-aitoff
 
+# todo
+- search function
+- latitude and longitude
+- proper cardinal directions
+- star blotting due to horizon
+- planets and sun simulations
+- deep sky objects
+- meteors and comets
+- more sky data
+
 # known bugs
 - lines wrap around the edge of the in hammer-aitoff projection
 - hammer-aitoff projection has weird polar rotation if you scroll too far east by way of shift-pan
