@@ -1,7 +1,7 @@
 class SkyRenderer {
     constructor(canvas) {
         // Add version info
-        this.version = "v0.14";
+        this.version = "v0.15";
 
         // Add observer location (default to London)
         this.location = {
@@ -69,6 +69,9 @@ class SkyRenderer {
         
         // Bind events
         this.bindEvents(canvas);
+
+        // Add search UI
+        this.createSearchUI();
 
         // Initial resize
         this.resize();
@@ -1947,6 +1950,233 @@ class SkyRenderer {
                 }
             }
         });
+    }
+
+    createSearchUI() {
+        // Create search container
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'control-panel';
+        searchContainer.style.display = 'flex';
+        searchContainer.style.flexDirection = 'column';
+        searchContainer.style.gap = '8px';
+        searchContainer.style.position = 'absolute';
+        searchContainer.style.top = '20px';
+        searchContainer.style.right = '20px';
+        searchContainer.style.width = 'fit-content';
+        searchContainer.style.minWidth = '300px';
+        searchContainer.style.zIndex = '1000';
+        searchContainer.style.backgroundColor = '#222';
+        searchContainer.style.padding = '10px';
+        searchContainer.style.borderRadius = '5px';
+
+        // Create search input row
+        const searchRow = document.createElement('div');
+        searchRow.style.display = 'flex';
+        searchRow.style.gap = '8px';
+        searchRow.style.alignItems = 'center';
+        searchRow.style.width = '100%';
+
+        // Create search input
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search star by name or ID...';
+        searchInput.style.backgroundColor = '#222';
+        searchInput.style.color = '#fff';
+        searchInput.style.border = '1px solid #444';
+        searchInput.style.borderRadius = '3px';
+        searchInput.style.padding = '5px 10px';
+        searchInput.style.width = '200px';
+        searchInput.style.fontSize = '14px';
+        searchInput.style.flexGrow = '1';
+
+        // Create search button
+        const searchButton = document.createElement('button');
+        searchButton.className = 'xeron-button';
+        searchButton.textContent = 'Search';
+        searchButton.style.padding = '5px 10px';
+        searchButton.style.backgroundColor = '#333';
+        searchButton.style.color = '#fff';
+        searchButton.style.border = '1px solid #444';
+        searchButton.style.borderRadius = '3px';
+        searchButton.style.cursor = 'pointer';
+        searchButton.style.whiteSpace = 'nowrap';
+
+        // Create feedback element
+        const feedbackDiv = document.createElement('div');
+        feedbackDiv.style.position = 'absolute';
+        feedbackDiv.style.left = '0';
+        feedbackDiv.style.right = '0';
+        feedbackDiv.style.top = '100%';
+        feedbackDiv.style.padding = '10px';
+        feedbackDiv.style.backgroundColor = '#222';
+        feedbackDiv.style.color = '#ff4444';
+        feedbackDiv.style.border = '1px solid #444';
+        feedbackDiv.style.borderRadius = '0 0 3px 3px';
+        feedbackDiv.style.transform = 'translateY(-100%)';
+        feedbackDiv.style.visibility = 'hidden';
+        feedbackDiv.style.transition = 'all 0.3s ease';
+        feedbackDiv.style.zIndex = '-1';
+        feedbackDiv.style.boxSizing = 'border-box';
+        feedbackDiv.style.width = '100%';
+        feedbackDiv.style.borderTop = 'none';
+        feedbackDiv.style.height = 'fit-content';
+
+        // Add search functionality
+        let feedbackTimeout;
+        const hideFeedback = () => {
+            feedbackDiv.style.transform = 'translateY(-100%)';
+            setTimeout(() => {
+                feedbackDiv.style.visibility = 'hidden';
+            }, 300);
+        };
+
+        const performSearch = () => {
+            const query = searchInput.value.trim().toLowerCase();
+            if (!query) return;
+
+            const foundStar = this.findStar(query);
+            if (foundStar) {
+                this.navigateToStar(foundStar);
+                searchInput.value = '';
+                hideFeedback();
+            } else {
+                feedbackDiv.textContent = `No star found matching.`;
+                feedbackDiv.style.visibility = 'visible';
+                requestAnimationFrame(() => {
+                    feedbackDiv.style.transform = 'translateY(0)';
+                });
+
+                // Clear existing timeout if any
+                if (feedbackTimeout) {
+                    clearTimeout(feedbackTimeout);
+                }
+
+                // Set new timeout to hide feedback after 3 seconds
+                feedbackTimeout = setTimeout(hideFeedback, 3000);
+            }
+        };
+
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        // Add elements to container
+        searchRow.appendChild(searchInput);
+        searchRow.appendChild(searchButton);
+        searchContainer.appendChild(searchRow);
+        searchContainer.appendChild(feedbackDiv);
+        this.canvas.parentNode.appendChild(searchContainer);
+    }
+
+    findStar(query) {
+        if (!this.stars) return null;
+
+        return this.stars.find(star => {
+            const commonName = star.commonName?.toLowerCase() || '';
+            const name = star.name?.toLowerCase() || '';
+            const id = star.id?.toLowerCase() || '';
+
+            return commonName.includes(query) || 
+                   name.includes(query) || 
+                   id.includes(query);
+        });
+    }
+
+    navigateToStar(star) {
+        if (!star) return;
+
+        // Calculate target rotation based on star's position
+        const raRad = star.ra * Math.PI / 12;  // Convert hours to radians
+        const decRad = star.dec * Math.PI / 180;  // Convert degrees to radians
+
+        // Store current rotation values
+        const startRotX = this.rotation.x;
+        const startRotY = this.rotation.y;
+        const startZoom = this.zoom;
+        const startScale = this.scale;
+        const startPanX = this.pan.x;
+        const startPanY = this.pan.y;
+
+        // Calculate target values
+        let targetRotX, targetRotY, targetPanX, targetPanY;
+        if (this.projectionType === 'spherical') {
+            targetRotX = -decRad;
+            targetRotY = -raRad;
+            targetPanX = 0;
+            targetPanY = 0;
+        } else {
+            targetRotX = this.rotation.x;
+            targetRotY = this.rotation.y;
+            const coords = this.equatorialToCartesian(star.ra, star.dec);
+            const pos = this.projectPoint(coords);
+            if (pos) {
+                const canvasWidth = this.canvas.width;
+                const canvasHeight = this.canvas.height;
+                targetPanX = -(pos.x - canvasWidth/2) / (this.scale * canvasWidth) * 4;
+                targetPanY = (pos.y - canvasHeight/2) / (this.scale * canvasHeight) * 4;
+            }
+        }
+
+        // Animation parameters
+        const duration = 1000; // Animation duration in milliseconds
+        const startTime = performance.now();
+
+        // Animation function
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function (ease-out cubic)
+            const easing = 1 - Math.pow(1 - progress, 3);
+
+            // Update rotation and zoom
+            if (this.projectionType === 'spherical') {
+                this.rotation.x = startRotX + (targetRotX - startRotX) * easing;
+                this.rotation.y = startRotY + (targetRotY - startRotY) * easing;
+            } else {
+                this.pan.x = startPanX + (targetPanX - startPanX) * easing;
+                this.pan.y = startPanY + (targetPanY - startPanY) * easing;
+            }
+
+            // Update zoom and scale
+            this.zoom = startZoom + (2.0 - startZoom) * easing;
+            this.scale = startScale + (1.0 - startScale) * easing;
+
+            // Update view and render
+            this.updateMatrices();
+            this.render();
+
+            // Continue animation if not complete
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Create info window after animation completes
+                setTimeout(() => {
+                    const transformedStar = this.transformStarsForProjection([star], this.projectionType, this.currentRenderTime)[0];
+                    const pos = this.projectPoint(transformedStar);
+                    
+                    if (pos) {
+                        // Remove existing info window for this star if it exists
+                        if (this.activeStars.has(star.id)) {
+                            const existingInfo = this.activeStars.get(star.id);
+                            existingInfo.infoWindow.remove();
+                            this.activeStars.delete(star.id);
+                        }
+
+                        // Simulate a click at the star's position
+                        const clickEvent = new MouseEvent('click', {
+                            clientX: pos.x + this.canvas.getBoundingClientRect().left,
+                            clientY: pos.y + this.canvas.getBoundingClientRect().top
+                        });
+                        this.canvas.dispatchEvent(clickEvent);
+                    }
+                }, 100);
+            }
+        };
+
+        // Start animation
+        requestAnimationFrame(animate);
     }
 } 
 

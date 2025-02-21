@@ -12,7 +12,6 @@ find me at the end of time.
 - hammer-aitoff
 
 # todo
-- search function
 - latitude and longitude
 - proper cardinal directions
 - star blotting due to horizon
@@ -25,6 +24,7 @@ find me at the end of time.
 - lines wrap around the edge of the in hammer-aitoff projection
 - hammer-aitoff projection has weird polar rotation if you scroll too far east by way of shift-pan
 - control panel is a bit buggy with the animations
+- camera in search is a bit weird
 
 # screenshots
 ![image](https://github.com/user-attachments/assets/8619cc07-5ff1-4964-8f5a-82bdd157dae6)

@@ -185,8 +185,8 @@ class NightSky {
         buttonRow.style.position = 'absolute';
         buttonRow.style.left = '50%';
         buttonRow.style.width = 'auto';
-        buttonRow.style.transform = 'translate(-50%, -100%)';
-        buttonRow.style.top = 'calc(100% - 1px)';
+        buttonRow.style.transform = 'translate(-50%, -28px)';  // Adjusted to match button height + padding
+        buttonRow.style.top = '100%';
         buttonRow.style.display = 'flex';
         buttonRow.style.alignItems = 'center';
         buttonRow.style.justifyContent = 'center';
@@ -205,17 +205,36 @@ class NightSky {
         controls.style.zIndex = '1000';
         controls.style.backgroundColor = '#222';
 
+        // Add position tracking variables
+        let hasBeenMoved = false;
+        let isNearBottom = false;
+
         // Toggle button row visibility with slide animation
         let isButtonRowVisible = false;
         dropdownBtn.onclick = () => {
             isButtonRowVisible = !isButtonRowVisible;
+            const controlRect = controls.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            const buttonRowHeight = 28;
+            
+            // Check if control panel is near bottom of screen
+            isNearBottom = (windowHeight - controlRect.bottom) < buttonRowHeight + 20;
+
             if (!isButtonRowVisible) {
-                buttonRow.style.transform = 'translate(-50%, -100%)';
+                buttonRow.style.transform = 'translate(-50%, -28px)';  // Match initial transform
                 setTimeout(() => {
                     buttonRow.style.visibility = 'hidden';
                 }, 300);
                 controls.style.borderRadius = '5px';
                 dropdownBtn.innerHTML = '▲';
+                
+                // If not manually moved, animate back to original position
+                if (!hasBeenMoved) {
+                    controls.style.transition = 'all 0.3s ease';
+                    controls.style.left = '50%';
+                    controls.style.bottom = '20px';
+                    controls.style.transform = 'translateX(-50%)';
+                }
             } else {
                 buttonRow.style.visibility = 'visible';
                 requestAnimationFrame(() => {
@@ -223,6 +242,12 @@ class NightSky {
                 });
                 controls.style.borderRadius = '5px 5px 0 0';
                 dropdownBtn.innerHTML = '▼';
+                
+                // If near bottom and not manually moved, move panel up
+                if (isNearBottom && !hasBeenMoved) {
+                    controls.style.transition = 'all 0.3s ease';
+                    controls.style.bottom = `${buttonRowHeight + 20}px`;
+                }
             }
         };
 
@@ -324,6 +349,9 @@ class NightSky {
                 initialLeft = rect.left;
                 initialBottom = window.innerHeight - rect.bottom;
                 controls.style.cursor = 'grabbing';
+                
+                // Remove transition when starting drag
+                controls.style.transition = 'none';
             }
         });
 
@@ -336,6 +364,7 @@ class NightSky {
                 controls.style.left = `${newLeft}px`;
                 controls.style.bottom = `${newBottom}px`;
                 controls.style.transform = 'none';
+                hasBeenMoved = true;
             }
         });
 
@@ -343,6 +372,20 @@ class NightSky {
             isDragging = false;
             controls.style.cursor = 'move';
         });
+
+        // Update home button to reset movement tracking
+        homeBtn.onclick = () => {
+            controls.style.transition = 'all 0.3s ease';
+            controls.style.left = '50%';
+            controls.style.bottom = '20px';
+            controls.style.transform = 'translateX(-50%)';
+            hasBeenMoved = false;
+            
+            // If dropdown is open and panel would be too close to bottom, adjust position
+            if (isButtonRowVisible && isNearBottom) {
+                controls.style.bottom = `${buttonRowHeight + 40}px`;
+            }
+        };
 
         // Update displays
         setInterval(() => {
