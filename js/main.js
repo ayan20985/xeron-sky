@@ -335,6 +335,7 @@ class NightSky {
             { id: 'showEquatorial', symbol: '⊕', tooltip: 'Equatorial Grid' },
             { id: 'showGalactic', symbol: '⊗', tooltip: 'Galactic Grid' },
             { id: 'showAzimuthal', symbol: '⊙', tooltip: 'Azimuthal Grid' },
+            { id: 'showHorizon', symbol: '⊘', tooltip: 'Horizon Circle & Cardinal Directions' },
             { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' },
             { type: 'separator' },
             // Solar System
@@ -355,6 +356,7 @@ class NightSky {
             { type: 'separator' },
             // Labels
             { id: 'showLabels', symbol: '⚏', tooltip: 'Object Labels' },
+
             { type: 'separator' },
             // Projections
             { id: 'projection', value: 'spherical', symbol: '◉', tooltip: 'Spherical Projection' },

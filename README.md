@@ -12,9 +12,7 @@ find me at the end of time.
 - hammer-aitoff
 
 # todo
-- latitude and longitude
-- proper cardinal directions
-- star blotting due to horizon
+- camera alignment
 - planets and sun simulations
 - deep sky objects
 - meteors and comets

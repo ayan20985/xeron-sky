@@ -1,7 +1,7 @@
 class SkyRenderer {
     constructor(canvas) {
         // Add version info
-        this.version = "v0.16";
+        this.version = "v0.17 - horizon";
 
         // Add observer location (default to Toronto)
         this.location = {
@@ -43,7 +43,8 @@ class SkyRenderer {
             showStarNames: true,
             showNebulae: true,
             showGalaxies: true,
-            showClusters: true
+            showClusters: true,
+            showHorizon: true  // Add new setting for horizon circle
         };
 
         // Initialize WebGL context and resources
@@ -914,7 +915,7 @@ class SkyRenderer {
         ctx.fillText(`Xeron Sky Engine ${this.version}`, padding, padding + lineHeight);
         
         // Draw disclaimer
-        ctx.fillText('© 2025 Xeron Sky Engine - For Tomfoolery and Magic', padding, padding + (lineHeight * 2));
+        ctx.fillText('© 2025 Xeron Sky Engine - For Educational Tomfoolery Use Only', padding, padding + (lineHeight * 2));
         
         // Draw website link with underline
         const websiteText = 'www.ayanali.net';
@@ -936,12 +937,11 @@ class SkyRenderer {
     
 
     render(currentTime = new Date()) {
-        // Store the current render time for use in click detection
         this.currentRenderTime = currentTime;
         
         this.resize();
-
-        // Clear canvases
+        
+        // Clear both canvases
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         if (this.ctx2d) {
             this.ctx2d.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
@@ -975,9 +975,6 @@ class SkyRenderer {
         if (this.visibility.showMeteors && this.meteorShowers) {
             this.drawMeteorShowers();
         }
-
-        // Draw 3D cardinal directions
-        this.draw3DCardinalDirections();
 
         // Draw connection lines for all active stars and update their positions
         if (this.activeStars.size > 0) {
@@ -1095,6 +1092,11 @@ class SkyRenderer {
 
         // Draw version info and credits after everything else
         this.drawVersionInfo();
+
+        // Draw horizon and azimuthal grid
+        if (this.visibility.showHorizon) {
+            this.drawHorizon();
+        }
     }
 
     updateMatrices() {
@@ -1187,8 +1189,6 @@ class SkyRenderer {
                     let eqCoords;
                     if (line.type === 'galactic' && 'l' in point && 'b' in point) {
                         eqCoords = this.galacticToCartesian(point.l, point.b);
-                    } else if (line.type === 'azimuthal' && 'az' in point && 'alt' in point) {
-                        eqCoords = this.azimuthalToCartesian(point.az, point.alt);
                     } else {
                         eqCoords = this.equatorialToCartesian(point.ra, point.dec);
                     }
@@ -1392,29 +1392,30 @@ class SkyRenderer {
         // Convert time to decimal hours
         const totalHours = utcHours + (utcMinutes / 60) + (utcSeconds / 3600) + (utcMillis / 3600000);
         
-        // Calculate Earth's rotation angle (15 degrees per hour)
-        const earthRotationAngle = (totalHours * 15) * (Math.PI / 180);
+        // Calculate local sidereal time
+        const lst = (totalHours * 15 + this.location.longitude); // in degrees
         
         return stars.map(star => {
-            // First rotate the star based on Earth's rotation
-            const rotatedRA = star.ra + (earthRotationAngle * 12 / Math.PI); // Convert radians to hours
+            // Convert star's RA from hours to degrees and apply sidereal time rotation
+            const starRA = (star.ra * 15 - lst + 360) % 360; // Convert RA to degrees and apply rotation
+            const starDec = star.dec;
             
             // Then apply projection
             let coords;
             switch(type) {
                 case 'stereographic':
-                    coords = this.equatorialToStereographic(rotatedRA, star.dec);
+                    coords = this.equatorialToStereographic(starRA / 15, starDec); // Convert back to hours for existing function
                     break;
                 case 'mercator':
-                    coords = this.equatorialToMercator(rotatedRA, star.dec);
+                    coords = this.equatorialToMercator(starRA / 15, starDec);
                     break;
                 case 'hammer':
-                    coords = this.equatorialToHammer(rotatedRA, star.dec);
+                    coords = this.equatorialToHammer(starRA / 15, starDec);
                     break;
                 default:
-                    // For spherical projection, calculate 3D coordinates with rotated RA
-                    const raRad = rotatedRA * Math.PI / 12; // Convert hours to radians
-                    const decRad = star.dec * Math.PI / 180; // Convert degrees to radians
+                    // For spherical projection, calculate 3D coordinates
+                    const raRad = starRA * Math.PI / 180; // Use rotated RA in radians
+                    const decRad = starDec * Math.PI / 180;
                     coords = {
                         x: Math.cos(decRad) * Math.cos(raRad),
                         y: Math.cos(decRad) * Math.sin(raRad),
@@ -1639,43 +1640,6 @@ class SkyRenderer {
             color: 'rgba(255, 100, 100, 0.5)',
             type: 'galactic'
         });
-
-        // Azimuthal grid (green)
-        // Altitude lines
-        for (let alt = 0; alt <= 90; alt += 15) {
-            const points = [];
-            for (let az = 0; az <= 360; az += 5) {
-                const coords = this.azimuthalToCartesian(az, alt);
-                points.push({
-                    ...coords,
-                    az: az,
-                    alt: alt
-                });
-            }
-            this.gridLines.push({
-                points,
-                color: 'rgba(50, 150, 50, 0.3)',
-                type: 'azimuthal'
-            });
-        }
-
-        // Azimuth lines
-        for (let az = 0; az < 360; az += 30) {
-            const points = [];
-            for (let alt = 0; alt <= 90; alt += 5) {
-                const coords = this.azimuthalToCartesian(az, alt);
-                points.push({
-                    ...coords,
-                    az: az,
-                    alt: alt
-                });
-            }
-            this.gridLines.push({
-                points,
-                color: 'rgba(50, 150, 50, 0.3)',
-                type: 'azimuthal'
-            });
-        }
     }
 
     galacticToCartesian(l, b) {
@@ -1706,20 +1670,6 @@ class SkyRenderer {
             x: Math.cos(delta) * Math.cos(alpha),
             y: Math.cos(delta) * Math.sin(alpha),
             z: Math.sin(delta)
-        };
-    }
-
-    azimuthalToCartesian(az, alt) {
-        // Convert azimuth and altitude to equatorial coordinates
-        // This is a simplified version that assumes the observer is at the equator
-        // For real implementation, we would need the observer's latitude and longitude
-        const azRad = az * Math.PI / 180;
-        const altRad = alt * Math.PI / 180;
-        
-        return {
-            x: Math.cos(altRad) * Math.sin(azRad),
-            y: Math.cos(altRad) * Math.cos(azRad),
-            z: Math.sin(altRad)
         };
     }
 
@@ -1781,46 +1731,18 @@ class SkyRenderer {
         ];
     }
 
-    // Add this method to the SkyRenderer class for 3D cardinal directions
-    draw3DCardinalDirections() {
-        const ctx = this.gl; // Assuming you're using WebGL context for 3D rendering
-        const positions = [
-            { label: 'N', x: 0, y: 1, z: 0 },
-            { label: 'NE', x: 0.707, y: 0.707, z: 0 },
-            { label: 'E', x: 1, y: 0, z: 0 },
-            { label: 'SE', x: 0.707, y: -0.707, z: 0 },
-            { label: 'S', x: 0, y: -1, z: 0 },
-            { label: 'SW', x: -0.707, y: -0.707, z: 0 },
-            { label: 'W', x: -1, y: 0, z: 0 },
-            { label: 'NW', x: -0.707, y: 0.707, z: 0 } 
-        ];
-
-        positions.forEach(pos => {
-            this.render3DLabel(pos.label, pos.x, pos.y, pos.z);
-        });
-    }
-
-    // Add this method to the SkyRenderer class for rendering 3D labels
-    render3DLabel(label, x, y, z) {
-        // Implement the logic to render the label in 3D space
-        // This could involve setting up a 3D text rendering system or using a sprite
-        // For example, using a 3D canvas or a library like three.js
-        // Placeholder for actual rendering logic
-        const ctx = this.ctx2d;
-        const pos = this.projectPoint({ x, y, z });
-        if (pos) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.font = '16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(label, pos.x, pos.y);
-        }
-    }
-
     createDisplayOptions() {
         const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.top = '20px';
+        container.style.left = '20px';
         container.style.display = 'flex';
         container.style.flexDirection = 'column';
         container.style.gap = '12px';
+        container.style.zIndex = '1000';
+        container.style.backgroundColor = '#222';
+        container.style.padding = '10px';
+        container.style.borderRadius = '5px';
 
         // Create sections for controls
         const sections = [
@@ -1830,7 +1752,8 @@ class SkyRenderer {
                     { id: 'showEquatorial', symbol: '⊕', tooltip: 'Equatorial Grid' },
                     { id: 'showGalactic', symbol: '⊗', tooltip: 'Galactic Grid' },
                     { id: 'showAzimuthal', symbol: '⊙', tooltip: 'Azimuthal Grid' },
-                    { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' }
+                    { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' },
+                    { id: 'showHorizon', symbol: '⊘', tooltip: 'Horizon Circle & Cardinal Directions' }
                 ]
             },
             {
@@ -2291,6 +2214,8 @@ class SkyRenderer {
             this.location.longitude = coords.lon;
             latInput.input.value = coords.lat;
             lonInput.input.value = coords.lon;
+            // Reinitialize grid and update display
+            this.initGrid();
             this.render();
         });
 
@@ -2300,6 +2225,8 @@ class SkyRenderer {
             if (!isNaN(lat) && !isNaN(lon)) {
                 this.location.latitude = Math.max(-90, Math.min(90, lat));
                 this.location.longitude = Math.max(-180, Math.min(180, lon));
+                // Reinitialize grid and update display
+                this.initGrid();
                 this.render();
             }
         };
@@ -2341,5 +2268,238 @@ class SkyRenderer {
 
         return locationContainer;
     }
-} 
+
+    calculateNormalVector() {
+        // Convert latitude and longitude to radians
+        const latRad = this.location.latitude * Math.PI / 180;
+        const lonRad = this.location.longitude * Math.PI / 180;
+
+        // Calculate normal vector (pointing outward from Earth's surface)
+        return {
+            x: Math.cos(latRad) * Math.cos(lonRad),
+            y: Math.cos(latRad) * Math.sin(lonRad),
+            z: Math.sin(latRad)
+        };
+    }
+
+    calculateHorizonPlane() {
+        const normal = this.calculateNormalVector();
+        
+        // Convert observer's location to radians
+        const latRad = this.location.latitude * Math.PI / 180;
+        const lonRad = this.location.longitude * Math.PI / 180;
+
+        // Helper function to convert horizon coordinates to equatorial and then to the current projection
+        const horizonToProjected = (az, alt) => {
+            const azRad = az * Math.PI / 180;
+            const altRad = alt * Math.PI / 180;
+
+            // Convert to equatorial coordinates
+            const sinDec = Math.sin(latRad) * Math.sin(altRad) + 
+                          Math.cos(latRad) * Math.cos(altRad) * Math.cos(azRad);
+            const dec = Math.asin(sinDec);
+
+            const cosH = (Math.sin(altRad) - Math.sin(latRad) * sinDec) / 
+                        (Math.cos(latRad) * Math.cos(dec));
+            const sinH = -Math.cos(altRad) * Math.sin(azRad) / Math.cos(dec);
+            const ha = Math.atan2(sinH, cosH);
+
+            // Calculate RA from hour angle using current sidereal time
+            const currentTime = this.currentRenderTime || new Date();
+            const utcHours = currentTime.getUTCHours();
+            const utcMinutes = currentTime.getUTCMinutes();
+            const utcSeconds = currentTime.getUTCSeconds();
+            const utcMillis = currentTime.getUTCMilliseconds();
+            const totalHours = utcHours + (utcMinutes / 60) + (utcSeconds / 3600) + (utcMillis / 3600000);
+            const lst = (totalHours * 15 + this.location.longitude) * Math.PI / 180;
+
+            const ra = (lst - ha + 2 * Math.PI) % (2 * Math.PI);
+            const raHours = ra * 12 / Math.PI;
+            const decDeg = dec * 180 / Math.PI;
+
+            // Convert to appropriate projection
+            let coords;
+            if (this.projectionType === 'spherical') {
+                coords = this.equatorialToCartesian(raHours, decDeg);
+            } else {
+                switch(this.projectionType) {
+                    case 'stereographic':
+                        coords = this.equatorialToStereographic(raHours, decDeg);
+                        break;
+                    case 'mercator':
+                        coords = this.equatorialToMercator(raHours, decDeg);
+                        break;
+                    case 'hammer':
+                        coords = this.equatorialToHammer(raHours, decDeg);
+                        break;
+                }
+            }
+
+            return {
+                ...coords,
+                az: az,
+                alt: alt
+            };
+        };
+
+        // Create horizon circle points
+        const horizonPoints = [];
+        const numPoints = 360;
+        for (let i = 0; i <= numPoints; i++) {
+            const az = (i * 360 / numPoints);
+            horizonPoints.push(horizonToProjected(az, 0));
+        }
+
+        // Create altitude circles (almucantars)
+        const altitudeCircles = [];
+        for (let alt = 15; alt <= 75; alt += 15) {
+            const points = [];
+            for (let az = 0; az <= 360; az += 5) {
+                points.push(horizonToProjected(az, alt));
+            }
+            altitudeCircles.push({
+                points,
+                altitude: alt
+            });
+        }
+
+        // Create azimuth lines
+        const azimuthLines = [];
+        for (let az = 0; az < 360; az += 30) {
+            const points = [];
+            for (let alt = 0; alt <= 90; alt += 5) {
+                points.push(horizonToProjected(az, alt));
+            }
+            azimuthLines.push({
+                points,
+                azimuth: az
+            });
+        }
+
+        // Create cardinal points
+        const cardinalPoints = [
+            { az: 0, label: 'N', isIntermediate: false },
+            { az: 45, label: 'NE', isIntermediate: true },
+            { az: 90, label: 'E', isIntermediate: false },
+            { az: 135, label: 'SE', isIntermediate: true },
+            { az: 180, label: 'S', isIntermediate: false },
+            { az: 225, label: 'SW', isIntermediate: true },
+            { az: 270, label: 'W', isIntermediate: false },
+            { az: 315, label: 'NW', isIntermediate: true }
+        ].map(point => ({
+            point: horizonToProjected(point.az, 0),
+            label: point.label,
+            isIntermediate: point.isIntermediate
+        }));
+
+        return {
+            horizonPoints,
+            altitudeCircles,
+            azimuthLines,
+            cardinalPoints,
+            normal
+        };
+    }
+
+    drawHorizon() {
+        if (!this.ctx2d) return;
+        if (!this.visibility.showHorizon && !this.visibility.showAzimuthal) return;
+
+        const horizonData = this.calculateHorizonPlane();
+        const ctx = this.ctx2d;
+
+        // Draw horizon circle if horizon visibility is enabled
+        if (this.visibility.showHorizon) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            ctx.lineWidth = 2;
+            let first = true;
+            horizonData.horizonPoints.forEach(point => {
+                const pos = this.projectPoint(point);
+                if (pos) {
+                    if (first) {
+                        ctx.moveTo(pos.x, pos.y);
+                        first = false;
+                    } else {
+                        ctx.lineTo(pos.x, pos.y);
+                    }
+                }
+            });
+            ctx.stroke();
+
+            // Draw cardinal points
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            horizonData.cardinalPoints.forEach(({ point, label, isIntermediate }) => {
+                const pos = this.projectPoint(point);
+                if (pos) {
+                    if (isIntermediate) {
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, 3, 0, 2 * Math.PI);
+                        ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+                        ctx.fill();
+                        ctx.font = '14px Arial';
+                    } else {
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, 4, 0, 2 * Math.PI);
+                        ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                        ctx.fill();
+                        ctx.font = '16px Arial';
+                    }
+
+                    const labelOffset = isIntermediate ? 15 : 20;
+                    const labelPos = {
+                        x: pos.x,
+                        y: pos.y - labelOffset
+                    };
+
+                    ctx.fillStyle = isIntermediate ? 'rgba(200, 200, 200, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillText(label, labelPos.x, labelPos.y);
+                }
+            });
+        }
+
+        // Draw altitude and azimuth lines if azimuthal visibility is enabled
+        if (this.visibility.showAzimuthal) {
+            ctx.strokeStyle = 'rgba(50, 150, 50, 0.3)';
+            ctx.lineWidth = 1;
+
+            // Draw altitude circles
+            horizonData.altitudeCircles.forEach(circle => {
+                ctx.beginPath();
+                let first = true;
+                circle.points.forEach(point => {
+                    const pos = this.projectPoint(point);
+                    if (pos) {
+                        if (first) {
+                            ctx.moveTo(pos.x, pos.y);
+                            first = false;
+                        } else {
+                            ctx.lineTo(pos.x, pos.y);
+                        }
+                    }
+                });
+                ctx.stroke();
+            });
+
+            // Draw azimuth lines
+            horizonData.azimuthLines.forEach(line => {
+                ctx.beginPath();
+                let first = true;
+                line.points.forEach(point => {
+                    const pos = this.projectPoint(point);
+                    if (pos) {
+                        if (first) {
+                            ctx.moveTo(pos.x, pos.y);
+                            first = false;
+                        } else {
+                            ctx.lineTo(pos.x, pos.y);
+                        }
+                    }
+                });
+                ctx.stroke();
+            });
+        }
+    }
+}
 
