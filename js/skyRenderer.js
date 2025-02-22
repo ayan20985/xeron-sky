@@ -1,7 +1,7 @@
 class SkyRenderer {
     constructor(canvas) {
         // Add version info
-        this.version = "v0.17 - horizon";
+        this.version = "v0.18 - Horizon Genesis ";
 
         // Add observer location (default to Toronto)
         this.location = {
@@ -2408,21 +2408,65 @@ class SkyRenderer {
         const horizonData = this.calculateHorizonPlane();
         const ctx = this.ctx2d;
 
+        // Helper function for line culling
+        const shouldDrawLine = (pos1, pos2) => {
+            if (!pos1 || !pos2) return false;
+            
+            const dx = pos2.x - pos1.x;
+            const dy = pos2.y - pos1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const canvasWidth = this.canvas.width;
+            const canvasHeight = this.canvas.height;
+            
+            if (this.projectionType === 'hammer') {
+                // Calculate normalized coordinates (-1 to 1)
+                const nx1 = (pos1.x / canvasWidth) * 2 - 1;
+                const nx2 = (pos2.x / canvasWidth) * 2 - 1;
+                const ny1 = (pos1.y / canvasHeight) * 2 - 1;
+                const ny2 = (pos2.y / canvasHeight) * 2 - 1;
+                
+                // Calculate distance from center for both points
+                const r1 = Math.sqrt(nx1 * nx1 + ny1 * ny1);
+                const r2 = Math.sqrt(nx2 * nx2 + ny2 * ny2);
+                
+                const edgeThreshold = 1.15;
+                if (r1 > edgeThreshold || r2 > edgeThreshold || 
+                    distance > canvasWidth * 0.4 || 
+                    (nx1 * nx2 < 0 && Math.abs(dx) > canvasWidth * 0.4)) {
+                    return false;
+                }
+            } else if (this.projectionType === 'mercator') {
+                // For Mercator, check horizontal wrapping
+                if (Math.abs(dx) > canvasWidth * 0.8) {
+                    return false;
+                }
+            }
+            
+            return true;
+        };
+
         // Draw horizon circle if horizon visibility is enabled
         if (this.visibility.showHorizon) {
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
             ctx.lineWidth = 2;
             let first = true;
+            let lastPos = null;
+            
             horizonData.horizonPoints.forEach(point => {
                 const pos = this.projectPoint(point);
                 if (pos) {
                     if (first) {
                         ctx.moveTo(pos.x, pos.y);
                         first = false;
-                    } else {
+                    } else if (shouldDrawLine(lastPos, pos)) {
                         ctx.lineTo(pos.x, pos.y);
+                    } else {
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(pos.x, pos.y);
                     }
+                    lastPos = pos;
                 }
             });
             ctx.stroke();
@@ -2468,15 +2512,22 @@ class SkyRenderer {
             horizonData.altitudeCircles.forEach(circle => {
                 ctx.beginPath();
                 let first = true;
+                let lastPos = null;
+                
                 circle.points.forEach(point => {
                     const pos = this.projectPoint(point);
                     if (pos) {
                         if (first) {
                             ctx.moveTo(pos.x, pos.y);
                             first = false;
-                        } else {
+                        } else if (shouldDrawLine(lastPos, pos)) {
                             ctx.lineTo(pos.x, pos.y);
+                        } else {
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.moveTo(pos.x, pos.y);
                         }
+                        lastPos = pos;
                     }
                 });
                 ctx.stroke();
@@ -2486,15 +2537,22 @@ class SkyRenderer {
             horizonData.azimuthLines.forEach(line => {
                 ctx.beginPath();
                 let first = true;
+                let lastPos = null;
+                
                 line.points.forEach(point => {
                     const pos = this.projectPoint(point);
                     if (pos) {
                         if (first) {
                             ctx.moveTo(pos.x, pos.y);
                             first = false;
-                        } else {
+                        } else if (shouldDrawLine(lastPos, pos)) {
                             ctx.lineTo(pos.x, pos.y);
+                        } else {
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.moveTo(pos.x, pos.y);
                         }
+                        lastPos = pos;
                     }
                 });
                 ctx.stroke();
@@ -2502,4 +2560,3 @@ class SkyRenderer {
         }
     }
 }
-

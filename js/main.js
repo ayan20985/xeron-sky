@@ -337,6 +337,7 @@ class NightSky {
             { id: 'showAzimuthal', symbol: '⊙', tooltip: 'Azimuthal Grid' },
             { id: 'showHorizon', symbol: '⊘', tooltip: 'Horizon Circle & Cardinal Directions' },
             { id: 'showEcliptic', symbol: '⊚', tooltip: 'Ecliptic Line' },
+            { id: 'hideStarsBelowHorizon', symbol: '⊖', tooltip: 'Hide Stars Below Horizon' },
             { type: 'separator' },
             // Solar System
             { id: 'showSun', symbol: '☉', tooltip: 'Sun' },
