@@ -1,4 +1,4 @@
-# https://ayanali.net/xeron-sky/
+# https://xeron.ayanali.net/
 
 # xeron-sky
 find me at the end of time.
